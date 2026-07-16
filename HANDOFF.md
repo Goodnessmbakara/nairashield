@@ -22,3 +22,15 @@ To finish the hackathon submission, you need to replace the mock functions in `s
 
 ## Next Steps for the Hackathon
 - **UI/Dashboard:** Since it's a hackathon, judges want to see something visual. Consider creating a quick Next.js frontend that simply calls your Cloudflare Worker URL and displays the resulting trade decisions in a nice feed!
+
+## ☁️ Cloudflare Workers Guide
+
+Cloudflare Workers is our edge computing platform. Because it runs globally across Cloudflare's edge network, the bot will execute incredibly fast.
+
+### Key Concepts for this Architecture:
+- **`wrangler.toml`**: This is the configuration file for the deployment. It tells Cloudflare what environment variables, databases, and AI models the worker has access to.
+- **Workers AI (`env.AI`)**: We use the native `@cloudflare/ai` binding to access Llama-3-8b. This means we do not need to pay for an external OpenAI API key, and the AI runs directly on Cloudflare's GPUs.
+- **Cron Triggers (`[triggers] crons = ["* * * * *"]`)**: This instructs Cloudflare to automatically wake up the bot and execute the `scheduled` function in `src/index.ts` every single minute.
+- **Deployment**: When you are ready to deploy the bot to the live internet, simply run `npx wrangler deploy`. Your bot will instantly go live and start ticking based on the cron schedule. 
+
+*(Note: Since it's a hackathon, deploying to the live edge early is highly recommended so you have a live URL to submit for judging!)*
