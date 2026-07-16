@@ -1,0 +1,14 @@
+---
+import Layout from "../layouts/Layout.astro";
+import Dashboard from "../components/Dashboard";
+---
+
+<!--
+  client:only - the dashboard is a live, data-driven view with nothing worth
+  server-rendering, and HeroUI's React Aria overlay container renders a portal
+  div that doesn't exist during SSR, which broke hydration. The landing page
+  keeps client:load so its marketing copy is still server-rendered for SEO.
+-->
+<Layout title="NairaShield Dashboard">
+  <Dashboard client:only="react" />
+</Layout>

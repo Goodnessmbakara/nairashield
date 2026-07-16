@@ -1,0 +1,300 @@
+/**
+ * NairaShield agent pipeline — PRD §2.1 states:
+ *
+ * 0. Settlement → close confirmed books, redeposit to Kamino
+ * 1. Market     → real TxLINE consensus odds (fair value)
+ * 2. Yield      → real Kamino position (or HOLD if none)
+ * 3. Decision   → Llama + Y_net market-making guardrails
+ * 4. Execution  → withdraw Kamino → BetDEX maker (safe abort)
+ * 5. Book       → register open position for later settlement
+ * 6. Persist    → KV history
+ *
+ * No mock feeds, fake balances, or invented order fills.
+ */
+
+import type {
+	Env,
+	AgentTickResult,
+	TickExecution,
+	Decision,
+	AgentStatus,
+	YieldPosition,
+	MarketOdds,
+} from "../types";
+import { loadAgentConfig, integrationFlags, isAgentReady } from "./config";
+import {
+	appendTick,
+	getLastTick,
+	loadPosition,
+	listOpenPositions,
+	addOpenPosition,
+} from "./store";
+import { buildOpenPosition, settleDuePositions } from "./settlement";
+import { fetchLatestOdds } from "../integrations/txline";
+import { getYieldPosition, withdrawYield, depositYield } from "../integrations/kamino";
+import { placeMakerOrder } from "../integrations/betdex";
+import { decide } from "../ai/brain";
+import type { AgentConfig } from "./config";
+
+export async function runAgentTick(env: Env): Promise<AgentTickResult> {
+	const started = Date.now();
+	const id = `tick_${started}`;
+	const config = loadAgentConfig(env);
+
+	try {
+		// 1. Real market feed (throws if TxLINE not configured / empty)
+		const market = await fetchLatestOdds(config);
+
+		// 0. Settlement — only with real BetDEX settlement data
+		const settlements = await settleDuePositions(env, config, market);
+
+		// 2. Real yield snapshot (null if never funded on-chain)
+		const yieldPosition = await getYieldPosition(env, config);
+
+		const openBooks = await listOpenPositions(env);
+		const booksFull = openBooks.length >= config.maxOpenPositions;
+
+		// Missing live capital → HOLD, do not invent a vault balance
+		if (!yieldPosition) {
+			return finishTick({
+				id,
+				started,
+				config,
+				env,
+				market,
+				// omit yield — never fabricate a USDC balance
+				decision: {
+					action: "HOLD",
+					reason:
+						"No live Kamino position. Fund the agent wallet and deposit USDC before trading.",
+					yieldApy: config.yieldApy,
+					makerMargin: config.makerMargin,
+				},
+				status: settlements.some((s) => s.success) ? "Settled" : "Skipped",
+				execution: settlements.length ? { settlements } : undefined,
+			});
+		}
+
+		// 3. Decision
+		const decision = await decide(env, {
+			market,
+			yieldPosition,
+			config,
+			booksFull,
+		});
+
+		if (settlements.length > 0 && decision.action === "HOLD") {
+			return finishTick({
+				id,
+				started,
+				config,
+				env,
+				market,
+				yieldPosition,
+				decision: {
+					...decision,
+					reason:
+						settlements.filter((s) => s.success).length > 0
+							? `Settled confirmed books back to Kamino. ${decision.reason}`
+							: decision.reason,
+				},
+				status: settlements.some((s) => s.success) ? "Settled" : "Skipped",
+				execution: { settlements },
+			});
+		}
+
+		// 4. Execution
+		let status: AgentTickResult["status"] = settlements.some((s) => s.success)
+			? "Settled"
+			: "Skipped";
+		let execution: TickExecution | undefined = settlements.length
+			? { settlements }
+			: undefined;
+
+		if (decision.action === "TRADE") {
+			const exec = await executeTradePath(
+				env,
+				config,
+				decision,
+				market.matchId,
+				market.match,
+			);
+			execution = {
+				...exec,
+				settlements: settlements.length ? settlements : undefined,
+			};
+			if (exec.aborted) {
+				status = "Aborted";
+			} else if (exec.order?.status === "placed") {
+				status = "Executed";
+			} else {
+				status = "Aborted";
+				execution = {
+					...execution,
+					aborted: true,
+					abortReason: exec.order?.error || exec.abortReason || "Order failed",
+				};
+				if (exec.withdrewUsdc && exec.withdrewUsdc > 0) {
+					const redeposit = await depositYield(env, config, exec.withdrewUsdc);
+					execution.redeposited = redeposit.success;
+					execution.redepositTxid = redeposit.txid;
+				}
+			}
+		}
+
+		return finishTick({
+			id,
+			started,
+			config,
+			env,
+			market,
+			yieldPosition: (await getYieldPosition(env, config)) ?? yieldPosition,
+			decision,
+			status,
+			execution,
+		});
+	} catch (e) {
+		const tick: AgentTickResult = {
+			id,
+			at: new Date().toISOString(),
+			status: "Error",
+			decision: {
+				action: "HOLD",
+				reason: "Tick failed before a decision could complete.",
+			},
+			error: e instanceof Error ? e.message : String(e),
+			durationMs: Date.now() - started,
+		};
+		await appendTick(env, tick);
+		return tick;
+	}
+}
+
+async function finishTick(args: {
+	id: string;
+	started: number;
+	config: AgentConfig;
+	env: Env;
+	market?: MarketOdds;
+	yieldPosition?: YieldPosition;
+	decision: Decision;
+	status: AgentTickResult["status"];
+	execution?: TickExecution;
+}): Promise<AgentTickResult> {
+	const tick: AgentTickResult = {
+		id: args.id,
+		at: new Date().toISOString(),
+		status: args.status,
+		decision: args.decision,
+		market: args.market,
+		yield: args.yieldPosition,
+		execution: args.execution,
+		openPositions: (await listOpenPositions(args.env)).length,
+		durationMs: Date.now() - args.started,
+	};
+	await appendTick(args.env, tick);
+	return tick;
+}
+
+/**
+ * Safe two-step execution:
+ * withdraw Kamino → if fail, abort (never place BetDEX).
+ * On real order place, open book for settlement.
+ */
+async function executeTradePath(
+	env: Env,
+	config: AgentConfig,
+	decision: Decision,
+	matchId: string,
+	match: string,
+): Promise<TickExecution> {
+	const size = config.tradeSizeUsdc;
+	const team = decision.team!;
+	const spread = decision.spread ?? 0;
+	const side = decision.side ?? "BACK";
+
+	const withdraw = await withdrawYield(env, config, size);
+	if (!withdraw.success) {
+		return {
+			aborted: true,
+			abortReason: withdraw.error || "Yield withdraw failed",
+		};
+	}
+
+	const order = await placeMakerOrder(config, {
+		team,
+		spread,
+		sizeUsdc: size,
+		side,
+		fairOdds: decision.fairOdds,
+		matchId,
+	});
+
+	if (order.status !== "placed") {
+		return {
+			withdrewUsdc: size,
+			withdrawTxid: withdraw.txid,
+			order,
+			aborted: true,
+			abortReason: order.error || "BetDEX order failed",
+		};
+	}
+
+	const position = buildOpenPosition({
+		matchId,
+		match,
+		team,
+		side,
+		sizeUsdc: size,
+		makerOdds: spread,
+		fairOdds: decision.fairOdds ?? spread,
+		orderId: order.orderId,
+		horizonHours: config.eventHorizonHours,
+	});
+	await addOpenPosition(env, position);
+
+	return {
+		withdrewUsdc: size,
+		withdrawTxid: withdraw.txid,
+		order,
+	};
+}
+
+export async function getAgentStatus(env: Env): Promise<AgentStatus> {
+	const config = loadAgentConfig(env);
+	const flags = integrationFlags(env, config);
+	const position = (await loadPosition(env)) ?? undefined;
+	const lastTick = await getLastTick(env);
+	const openPositions = await listOpenPositions(env);
+	const ready = isAgentReady(env, config);
+
+	return {
+		ok: ready,
+		mode: ready ? "live" : "not_ready",
+		integrations: flags,
+		position: position?.source === "live" ? position : undefined,
+		openPositions,
+		lastTick,
+		config: {
+			tradeSizeUsdc: config.tradeSizeUsdc,
+			yieldApy: config.yieldApy,
+			minEdge: config.minEdge,
+			makerMargin: config.makerMargin,
+			eventHorizonHours: config.eventHorizonHours,
+			maxOpenPositions: config.maxOpenPositions,
+		},
+	};
+}
+
+/** Backward-compatible export */
+export async function runAgent(env: Env) {
+	const tick = await runAgentTick(env);
+	if (tick.status === "Error") {
+		return { error: tick.error || "Agent error", raw: tick.raw, decision: tick.decision };
+	}
+	return {
+		status: tick.status === "Executed" ? "Executed" : "Skipped",
+		decision: tick.decision,
+		tick,
+	};
+}

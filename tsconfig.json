@@ -1,11 +1,11 @@
 {
   "compilerOptions": {
-    "target": "es2022",
-    "module": "es2022",
-    "moduleResolution": "bundler",
-    "types": [
-      "@cloudflare/workers-types"
-    ],
+    "target": "ES2022",
+    "lib": ["ES2022"],
+    "module": "ES2022",
+    "moduleResolution": "Bundler",
+    "types": ["@cloudflare/workers-types"],
+    "skipLibCheck": true,
     "resolveJsonModule": true,
     "allowJs": true,
     "checkJs": false,
@@ -13,7 +13,9 @@
     "noEmit": true,
     "isolatedModules": true,
     "allowSyntheticDefaultImports": true,
-    "forceConsistentCasingInFileNames": true
+    "forceConsistentCasingInFileNames": true,
+    "noUncheckedIndexedAccess": false
   },
-  "include": ["src/**/*"]
+  "include": ["src/**/*"],
+  "exclude": ["node_modules", "web", "dist"]
 }

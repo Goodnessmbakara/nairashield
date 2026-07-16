@@ -23,21 +23,69 @@ Built for the **TxODDS Superteam Earn Hackathon** (Trading Tools and Agents Trac
 ### Prerequisites
 - Node.js (v18+)
 - Cloudflare Wrangler CLI
+- Google Cloud OAuth 2.0 Web client (for sign-in)
 
 ### Installation
 ```bash
 npm install
+cd web && npm install && cd ..
 ```
 
 ### Environment Variables
-Create a `.dev.vars` file in the root directory (for local testing):
+Copy `.dev.vars.example` → `.dev.vars` in the **repo root** (worker):
+
 ```env
-# Optional: The bot will generate a random Devnet key if left blank
-SOLANA_PRIVATE_KEY=your_base58_private_key
+GOOGLE_CLIENT_ID=....apps.googleusercontent.com
+GOOGLE_CLIENT_SECRET=...
+SESSION_SECRET=long-random-string-at-least-32-chars
+WORKER_URL=http://127.0.0.1:8787
+FRONTEND_URL=http://127.0.0.1:4321
+# Optional
+SOLANA_PRIVATE_KEY=
 RPC_URL=https://api.devnet.solana.com
+```
+
+Google OAuth **Authorized redirect URI**:
+- `http://127.0.0.1:8787/auth/google/callback`
+- `https://<your-worker>.workers.dev/auth/google/callback`
+
+Web env (`web/.env`):
+```env
+PUBLIC_AGENT_URL=http://127.0.0.1:8787
+```
+
+### KV sessions
+Create a real KV namespace before production deploy:
+```bash
+npx wrangler kv namespace create SESSIONS
+# paste the id into wrangler.toml
 ```
 
 ### Run Locally
 ```bash
-npx wrangler dev
+# terminal 1 - agent + auth API
+npm run dev
+
+# terminal 2 - marketing + dashboard
+cd web && npm run dev
+```
+
+### Auth API (worker)
+| Route | Auth | Description |
+|---|---|---|
+| `GET /health` | public | liveness |
+| `GET /auth/google` | public | start Google OAuth |
+| `GET /auth/google/callback` | Google | OAuth callback |
+| `POST /auth/exchange` | one-time code | issue bearer session |
+| `GET /auth/me` | bearer | current user |
+| `POST /auth/logout` | bearer | destroy session |
+| `POST /agent/tick` | **required** | run one agent decision |
+| Cron `* * * * *` | internal | autonomous loop |
+
+### Deploy worker
+```bash
+npx wrangler secret put GOOGLE_CLIENT_ID
+npx wrangler secret put GOOGLE_CLIENT_SECRET
+npx wrangler secret put SESSION_SECRET
+npx wrangler deploy
 ```

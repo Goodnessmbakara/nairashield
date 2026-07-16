@@ -1,0 +1,8 @@
+---
+import Layout from "../../layouts/Layout.astro";
+import LoginCallback from "../../components/auth/LoginCallback";
+---
+
+<Layout title="Signing in | NairaShield">
+  <LoginCallback client:only="react" />
+</Layout>

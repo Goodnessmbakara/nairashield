@@ -1,36 +1,55 @@
 # Project Handoff: NairaShield Bot
 
-## Current State of the Codebase
-The core architecture and scaffolding are complete. The bot is designed to run as a **Cloudflare Worker** using **TypeScript**, making it extremely fast, serverless, and low-latency.
+## Rule: no mocks
 
-### What is working:
-1. **The Infrastructure:** The `wrangler.toml` is configured to use Cloudflare AI (`AI` binding) and has a Cron Trigger setup to run the bot automatically every minute.
-2. **The LLM Brain:** `src/ai/brain.ts` successfully initializes Llama 3 via Cloudflare Workers AI. It takes mocked TxLINE odds, feeds them into a strict prompt, and parses the returned JSON string into a structured decision.
-3. **The Agent Wallet:** `src/blockchain/agent.ts` safely initializes the Solana Agent Kit. It gracefully falls back to generating a random Devnet keypair if one isn't provided in the environment variables, meaning the app will not crash during a local demo.
+The agent **never** fabricates odds, vault balances, order IDs, or settlement PnL.
+Missing keys → honest HOLD / Error. No `AGENT_DEMO_MODE`, no virtual USDC, no fake fills.
 
-## What Needs to Be Done Next (The "Mocks")
-To finish the hackathon submission, you need to replace the mock functions in `src/integrations/*` with actual API calls:
+## Compliance vs PRD / research
 
-1. **`txline.ts`**: Replace the static return object with a `fetch` request to the TxLINE API or an SSE stream listener to get real consensus odds.
-2. **`kamino.ts`**: Use the imported `SolanaAgentKit` or `@kamino-finance/klend-sdk` to execute real `deposit` and `withdraw` instructions for USDC on Solana Devnet.
-3. **`betdex.ts`**: Obtain a BetDEX API token and write the HTTP `POST` request to their REST API to actually place the maker order on the orderbook.
+| Requirement | Status |
+|---|---|
+| Idle USDC in Kamino | Live path only (fails closed until klend deposit/withdraw wired) |
+| Cron monitors TxLINE fair odds | Real API only (`TXLINE_*` required) |
+| In-play market making (not arb) | Yes — `src/agent/math.ts` + brain |
+| Maker quotes with margin on BetDEX | Real REST only (`BETDEX_API_KEY`) |
+| Y_net before leaving yield | Yes |
+| Safe abort if withdraw fails | Yes |
+| Settlement → redeposit Kamino | Only when BetDEX confirms real settlement |
+| USDC only | Yes |
+| Google auth + dashboard | Yes |
 
-## How to Test
-1. Make sure you have your dependencies installed (`npm install`).
-2. Run the local Cloudflare dev server: `npx wrangler dev`.
-3. Press `b` in your terminal to open the browser. This will hit the HTTP fetch handler in `src/index.ts`, simulating a cron-tick, and you will see the LLM's trading decision output on the screen.
+## Loop (`POST /agent/tick` + cron)
 
-## Next Steps for the Hackathon
-- **UI/Dashboard:** Since it's a hackathon, judges want to see something visual. Consider creating a quick Next.js frontend that simply calls your Cloudflare Worker URL and displays the resulting trade decisions in a nice feed!
+1. TxLINE fair odds (throws if not configured)
+2. Settle open books **only** with BetDEX-confirmed PnL
+3. Read live Kamino snapshot (HOLD if none)
+4. Llama + Y_net decision
+5. Withdraw → maker order → open book (all real or abort)
+6. Persist tick history
 
-## ☁️ Cloudflare Workers Guide
+## Required secrets for a live tick
 
-Cloudflare Workers is our edge computing platform. Because it runs globally across Cloudflare's edge network, the bot will execute incredibly fast.
+```
+TXLINE_API_URL, TXLINE_API_KEY
+BETDEX_API_KEY
+SOLANA_PRIVATE_KEY
++ Google OAuth secrets for dashboard auth
+```
 
-### Key Concepts for this Architecture:
-- **`wrangler.toml`**: This is the configuration file for the deployment. It tells Cloudflare what environment variables, databases, and AI models the worker has access to.
-- **Workers AI (`env.AI`)**: We use the native `@cloudflare/ai` binding to access Llama-3-8b. This means we do not need to pay for an external OpenAI API key, and the AI runs directly on Cloudflare's GPUs.
-- **Cron Triggers (`[triggers] crons = ["* * * * *"]`)**: This instructs Cloudflare to automatically wake up the bot and execute the `scheduled` function in `src/index.ts` every single minute.
-- **Deployment**: When you are ready to deploy the bot to the live internet, simply run `npx wrangler deploy`. Your bot will instantly go live and start ticking based on the cron schedule. 
+## Still to wire (real, not mock)
 
-*(Note: Since it's a hackathon, deploying to the live edge early is highly recommended so you have a live URL to submit for judging!)*
+- Kamino `klend-sdk` deposit/withdraw instruction builders (currently fail closed with clear errors)
+- Exact BetDEX order schema once API docs/token are available
+- TxLINE path may need endpoint path tweak once credentials land
+
+## Policy env
+
+| Var | Meaning | Default |
+|---|---|---|
+| `YIELD_APY` | opportunity rate r | 0.08 |
+| `TRADE_SIZE_USDC` | C per book | 10 |
+| `MIN_EDGE` | min Y_net/C | 0.01 |
+| `MAKER_MARGIN` | quote width m | 0.02 |
+| `EVENT_HORIZON_HOURS` | T | 2 |
+| `MAX_OPEN_POSITIONS` | concurrent books | 3 |

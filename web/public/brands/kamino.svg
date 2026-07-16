@@ -1,0 +1,5 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 32" fill="none">
+  <rect width="32" height="32" rx="8" fill="#7C5CFF"/>
+  <path d="M10 22V10h3.2l4.2 7.4L21.6 10H24.8v12h-2.8v-7.1L18 19.6h-1.6L12.8 14.9V22H10z" fill="#fff"/>
+  <text x="40" y="21" fill="#111827" font-family="system-ui,sans-serif" font-size="14" font-weight="600">Kamino</text>
+</svg>
