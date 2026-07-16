@@ -11,7 +11,7 @@ Built the full autonomous agent stack on the Cloudflare Worker, aligned to the P
 - **Y_net math** (`src/agent/math.ts`) — TxLINE fair value, maker quotes with margin, opportunity-cost model
 - **Settlement** (`src/agent/settlement.ts`) — redeposit only when BetDEX confirms real settlement
 - **Store** (`src/agent/store.ts`) — KV tick history, live yield snapshot, open books
-- **Config** (`src/agent/config.ts`) — policy from env (`YIELD_APY`, `MIN_EDGE`, `MAKER_MARGIN`, etc.)
+- **Config** (`src/agent/config.ts`) — policy in `src/agent/config.ts` (`AGENT_POLICY`)
 
 ### Decision brain
 - **Llama 3** via Workers AI + local guardrails (`src/ai/brain.ts`)

@@ -25,18 +25,7 @@ export interface Env {
 	TXLINE_API_KEY?: string;
 	BETDEX_API_URL?: string;
 	BETDEX_API_KEY?: string;
-	/** Annualized opportunity yield rate for idle capital (e.g. 0.08 = 8%) */
-	YIELD_APY?: string;
-	/** USDC amount (units) the agent may deploy per trade */
-	TRADE_SIZE_USDC?: string;
-	/** Minimum Y_net / C before TRADE is allowed */
-	MIN_EDGE?: string;
-	/** Maker margin around TxLINE fair value (e.g. 0.02 = 2%) */
-	MAKER_MARGIN?: string;
-	/** Assumed open-position horizon in hours (T in Y_net) */
-	EVENT_HORIZON_HOURS?: string;
-	/** Max concurrent open books */
-	MAX_OPEN_POSITIONS?: string;
+	// Agent policy (yieldApy, trade size, margins, etc.) lives in src/agent/config.ts — not env.
 }
 
 // ── Agent domain ────────────────────────────────────────────────────

@@ -43,13 +43,7 @@ SOLANA_PRIVATE_KEY
 - Exact BetDEX order schema once API docs/token are available
 - TxLINE path may need endpoint path tweak once credentials land
 
-## Policy env
+## Agent policy
 
-| Var | Meaning | Default |
-|---|---|---|
-| `YIELD_APY` | opportunity rate r | 0.08 |
-| `TRADE_SIZE_USDC` | C per book | 10 |
-| `MIN_EDGE` | min Y_net/C | 0.01 |
-| `MAKER_MARGIN` | quote width m | 0.02 |
-| `EVENT_HORIZON_HOURS` | T | 2 |
-| `MAX_OPEN_POSITIONS` | concurrent books | 3 |
+Edit `src/agent/config.ts` → `AGENT_POLICY` (not env):
+`yieldApy`, `tradeSizeUsdc`, `minEdge`, `makerMargin`, `eventHorizonHours`, `maxOpenPositions`.

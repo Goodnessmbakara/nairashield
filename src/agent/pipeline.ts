@@ -40,9 +40,28 @@ export async function runAgentTick(env: Env): Promise<AgentTickResult> {
 	const started = Date.now();
 	const id = `tick_${started}`;
 	const config = loadAgentConfig(env);
+	const flags = integrationFlags(env, config);
 
 	try {
-		// 1. Real market feed (throws if TxLINE not configured / empty)
+		// Preflight: hold with a clear reason (never invent market data)
+		if (!flags.txline) {
+			return finishTick({
+				id,
+				started,
+				config,
+				env,
+				decision: {
+					action: "HOLD",
+					reason:
+						"TxLINE not configured. Set TXLINE_API_URL and TXLINE_API_KEY in .dev.vars, then restart the worker.",
+					yieldApy: config.yieldApy,
+					makerMargin: config.makerMargin,
+				},
+				status: "Skipped",
+			});
+		}
+
+		// 1. Real market feed
 		const market = await fetchLatestOdds(config);
 
 		// 0. Settlement — only with real BetDEX settlement data
@@ -154,15 +173,16 @@ export async function runAgentTick(env: Env): Promise<AgentTickResult> {
 			execution,
 		});
 	} catch (e) {
+		const detail = e instanceof Error ? e.message : String(e);
 		const tick: AgentTickResult = {
 			id,
 			at: new Date().toISOString(),
 			status: "Error",
 			decision: {
 				action: "HOLD",
-				reason: "Tick failed before a decision could complete.",
+				reason: detail || "Tick failed before a decision could complete.",
 			},
-			error: e instanceof Error ? e.message : String(e),
+			error: detail,
 			durationMs: Date.now() - started,
 		};
 		await appendTick(env, tick);

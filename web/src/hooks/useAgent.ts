@@ -13,16 +13,58 @@ export function useAgent(options?: { enabled?: boolean }) {
   const [error, setError] = React.useState<string | null>(null);
   const [loading, setLoading] = React.useState(false);
   const [needsAuth, setNeedsAuth] = React.useState(false);
+  const inFlight = React.useRef(false);
+  const mounted = React.useRef(true);
+  const lastReason = React.useRef<string | null>(null);
+
+  React.useEffect(() => {
+    mounted.current = true;
+    return () => {
+      mounted.current = false;
+    };
+  }, []);
 
   const poll = React.useCallback(async (signal?: AbortSignal) => {
-    setLoading(true);
+    // Hard lock: stress-clicks / overlapping intervals cannot stack
+    if (inFlight.current) return;
+    if (!isConfigured()) {
+      setError("Agent isn’t connected yet. Live numbers will appear when it is.");
+      return;
+    }
+    if (!getToken()) {
+      setNeedsAuth(true);
+      setError("Sign in with Google to run live checks.");
+      return;
+    }
+
+    inFlight.current = true;
+    if (mounted.current) setLoading(true);
+
     try {
       const tick = await fetchTick(signal);
+      if (!mounted.current || signal?.aborted) return;
+
       setError(null);
       setNeedsAuth(false);
-      setTicks((prev) => [tick, ...prev].slice(0, 40));
+
+      // Avoid recursive list growth when the agent keeps returning the same HOLD
+      const reason = tick.decision?.reason ?? "";
+      const sameAsLast =
+        lastReason.current === reason &&
+        tick.decision?.action === "HOLD" &&
+        reason.length > 0;
+
+      if (!sameAsLast) {
+        lastReason.current = reason;
+        setTicks((prev) => {
+          if (prev[0]?.id === tick.id) return prev;
+          return [tick, ...prev].slice(0, 40);
+        });
+      }
     } catch (e) {
       if ((e as Error).name === "AbortError") return;
+      if (!mounted.current) return;
+
       const msg = (e as Error).message;
       const code = (e as { code?: string }).code;
       if (code === "unauthorized" || msg.toLowerCase().includes("sign in")) {
@@ -36,10 +78,11 @@ export function useAgent(options?: { enabled?: boolean }) {
         setError("Can’t reach the agent right now. Try again in a moment.");
       } else {
         setNeedsAuth(false);
-        setError("Something went wrong loading the latest check.");
+        setError(msg || "Something went wrong loading the latest check.");
       }
     } finally {
-      setLoading(false);
+      inFlight.current = false;
+      if (mounted.current) setLoading(false);
     }
   }, []);
 
@@ -48,7 +91,6 @@ export function useAgent(options?: { enabled?: boolean }) {
       setLoading(false);
       return;
     }
-    const ctrl = new AbortController();
     if (!isConfigured()) {
       setError("Agent isn’t connected yet. Live numbers will appear when it is.");
       return;
@@ -58,11 +100,17 @@ export function useAgent(options?: { enabled?: boolean }) {
       setError("Sign in with Google to run live checks.");
       return;
     }
-    poll(ctrl.signal);
-    const id = setInterval(() => poll(ctrl.signal), POLL_MS);
+
+    const ctrl = new AbortController();
+    // One initial check only — no recursive cascade from overlapping timers
+    void poll(ctrl.signal);
+    const id = window.setInterval(() => {
+      if (!inFlight.current) void poll();
+    }, POLL_MS);
+
     return () => {
       ctrl.abort();
-      clearInterval(id);
+      window.clearInterval(id);
     };
   }, [poll, enabled]);
 
@@ -70,7 +118,10 @@ export function useAgent(options?: { enabled?: boolean }) {
     ticks,
     error,
     loading,
-    poll,
+    poll: () => {
+      // Manual run always uses a fresh controller (ignore prior abort)
+      void poll();
+    },
     configured: isConfigured(),
     needsAuth,
   };

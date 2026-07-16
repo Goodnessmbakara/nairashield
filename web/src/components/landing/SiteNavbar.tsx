@@ -20,7 +20,7 @@ import { nav } from "../../data/landing";
 import BrandMark from "../ui/BrandMark";
 
 /**
- * Rectangular floating bar: N + links + Sign in.
+ * Rectangular floating bar: N mark + links + Sign up / Sign in.
  */
 const SiteNavbar = React.forwardRef<HTMLElement, NavbarProps>(
   ({ classNames = {}, ...props }, ref) => {
@@ -87,7 +87,7 @@ const SiteNavbar = React.forwardRef<HTMLElement, NavbarProps>(
                 radius="full"
                 size="sm"
               >
-                Sign in
+                Sign up / Sign in
               </Button>
             </NavbarItem>
           </NavbarContent>
@@ -111,7 +111,7 @@ const SiteNavbar = React.forwardRef<HTMLElement, NavbarProps>(
                 href="/login"
                 radius="full"
               >
-                Sign in
+                Sign up / Sign in
               </Button>
             </NavbarMenuItem>
             {nav.map((item, index) => (

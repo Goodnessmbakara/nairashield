@@ -3,8 +3,8 @@
  *
  * Strategy (research pivot): In-Play Market Making — NOT arbitrage.
  * TxLINE odds = fair value baseline.
- * Quote maker prices on BetDEX with MAKER_MARGIN.
- * Only TRADE when Y_net > 0 and Y_net/C >= MIN_EDGE after idle-yield cost.
+ * Quote maker prices on BetDEX with AGENT_POLICY.makerMargin (config.ts).
+ * Only TRADE when Y_net > 0 and Y_net/C >= minEdge after idle-yield cost.
  */
 
 import type { AgentConfig } from "../agent/config";

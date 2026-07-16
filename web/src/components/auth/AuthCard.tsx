@@ -1,14 +1,15 @@
 "use client";
 
 /**
- * Design ProMax authentication card - Google sign-in focused.
- * @see sources/Application/authentication (24)__App.tsx
+ * Design ProMax authentication card - Google for new + returning users.
+ * Google OAuth creates a session for first-time sign-up and sign-in alike.
  */
 
 import React from "react";
 import { Button, Divider, Link, cn } from "@heroui/react";
 import { Icon } from "@iconify/react";
 import { googleSignInUrl, isAgentConfigured } from "../../lib/auth";
+import BrandMark from "../ui/BrandMark";
 
 type AuthCardProps = {
   className?: string;
@@ -22,8 +23,8 @@ const AuthCard = React.forwardRef<HTMLDivElement, AuthCardProps>(
   (
     {
       className,
-      title = "Welcome back",
-      subtitle = "Sign in to open your dashboard and run the agent",
+      title = "Join NairaShield",
+      subtitle = "Sign up or sign in with Google to open your dashboard and run the agent",
       returnTo,
       error,
     },
@@ -42,10 +43,10 @@ const AuthCard = React.forwardRef<HTMLDivElement, AuthCardProps>(
         className={cn("flex h-full w-full flex-col items-center justify-center px-4", className)}
       >
         <div className="flex flex-col items-center pb-6">
-          <div className="mb-3 flex h-14 w-14 items-center justify-center rounded-full bg-default-foreground font-display text-xl font-bold text-background">
-            N
-          </div>
-          <p className="font-display text-xl font-semibold tracking-tight text-foreground">{title}</p>
+          <BrandMark className="mb-3" size="lg" />
+          <p className="font-display text-xl font-semibold tracking-tight text-foreground">
+            {title}
+          </p>
           <p className="mt-1 max-w-xs text-center text-small text-default-500">{subtitle}</p>
         </div>
 
@@ -58,8 +59,8 @@ const AuthCard = React.forwardRef<HTMLDivElement, AuthCardProps>(
 
           {!configured && (
             <div className="rounded-medium border border-warning-100 bg-warning-50/60 px-3 py-2 text-tiny text-default-600">
-              Set <code className="font-medium">PUBLIC_AGENT_URL</code> so Google sign-in can reach
-              the worker.
+              Set <code className="font-medium">PUBLIC_AGENT_URL</code> so Google auth can reach the
+              worker.
             </div>
           )}
 
@@ -74,9 +75,13 @@ const AuthCard = React.forwardRef<HTMLDivElement, AuthCardProps>(
             Continue with Google
           </Button>
 
+          <p className="text-center text-tiny leading-5 text-default-500">
+            New here? That creates your account. Already have one? You sign in the same way.
+          </p>
+
           <div className="flex items-center gap-4">
             <Divider className="flex-1" />
-            <p className="shrink-0 text-tiny text-default-500">secure sign-in</p>
+            <p className="shrink-0 text-tiny text-default-500">sign up · sign in</p>
             <Divider className="flex-1" />
           </div>
 

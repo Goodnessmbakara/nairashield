@@ -99,7 +99,8 @@ export async function fetchTick(signal?: AbortSignal): Promise<Tick> {
       headers: authHeaders(),
       credentials: "include",
     });
-  } catch {
+  } catch (e) {
+    if ((e as Error).name === "AbortError") throw e;
     throw new AgentError("Cannot reach the agent right now.");
   }
 
