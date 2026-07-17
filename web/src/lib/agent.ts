@@ -39,6 +39,16 @@ export type TickExecution = {
   order?: { orderId?: string; status?: string };
 };
 
+/** Sharp odds shift between two consecutive real snapshots of the same fixture. */
+export type TickMovement = {
+  outcome: string;
+  fromOdds: number;
+  toOdds: number;
+  changePct: number;
+  direction: "shortening" | "drifting";
+  since?: string;
+};
+
 /** Exact shape of the worker's tick response (plus optional user stamp). */
 export type AgentResponse =
   | {
@@ -54,6 +64,7 @@ export type AgentResponse =
         market?: TickMarket;
         yield?: TickYield;
         execution?: TickExecution;
+        movement?: TickMovement[];
         durationMs?: number;
       };
     }
@@ -68,6 +79,7 @@ export type Tick = {
   market?: TickMarket;
   yield?: TickYield;
   execution?: TickExecution;
+  movement?: TickMovement[];
 };
 
 export { AGENT_URL };
@@ -139,6 +151,7 @@ export async function fetchTick(signal?: AbortSignal): Promise<Tick> {
     market: ok.tick?.market,
     yield: ok.tick?.yield,
     execution: ok.tick?.execution,
+    movement: ok.tick?.movement,
   };
 }
 
@@ -177,6 +190,7 @@ export async function fetchAgentHistory(limit = 40, signal?: AbortSignal) {
       market?: TickMarket;
       yield?: TickYield;
       execution?: TickExecution;
+      movement?: TickMovement[];
     }>;
   };
   return (body.ticks ?? []).map((t) => ({
@@ -187,5 +201,6 @@ export async function fetchAgentHistory(limit = 40, signal?: AbortSignal) {
     market: t.market,
     yield: t.yield,
     execution: t.execution,
+    movement: t.movement,
   })) satisfies Tick[];
 }
