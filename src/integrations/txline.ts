@@ -96,30 +96,96 @@ async function fetchOddsSnapshot(
 			`${origin}/api/scores/snapshot/${fixtureId}`,
 		);
 	}
-	// Global snapshots — confirmed responding (403 requires valid token, not 404)
-	candidates.push(
-		`${origin}/api/odds/snapshot`,
-		`${origin}/api/scores/snapshot`,
-		`${origin}/api/fixtures/snapshot`,
-	);
+	// Global snapshot — exists on mainnet; devnet serves per-fixture only (404).
+	candidates.push(`${origin}/api/odds/snapshot`);
 
 	let lastErr: Error | null = null;
-	for (const url of candidates) {
+	let sawEmptyFeed = false;
+
+	const tryUrl = async (url: string): Promise<MarketOdds | null> => {
 		try {
 			const res = await fetch(url, { headers });
 			if (!res.ok) {
 				const text = await res.text().catch(() => "");
 				lastErr = new Error(`TxLINE HTTP ${res.status} @ ${url}: ${text}`);
-				continue;
+				return null;
 			}
 			const body = (await res.json()) as unknown;
+			if (Array.isArray(body) && body.length === 0) {
+				// Authenticated, healthy response — no odds in the current
+				// snapshot interval for this scope. Not an error.
+				sawEmptyFeed = true;
+				return null;
+			}
 			return normalizeTxline(body, url);
 		} catch (e) {
 			lastErr = e instanceof Error ? e : new Error(String(e));
+			return null;
 		}
+	};
+
+	for (const url of candidates) {
+		const market = await tryUrl(url);
+		if (market) return market;
 	}
 
+	// Per-fixture sweep from the real fixtures feed (the reference client's
+	// model): nearest upcoming / in-play fixtures first.
+	const fixtures = await listFixtures(origin, headers);
+	for (const f of fixtures.slice(0, 6)) {
+		const market = await tryUrl(`${origin}/api/odds/snapshot/${f.fixtureId}`);
+		if (market) return market;
+	}
+
+	if (sawEmptyFeed) {
+		const next = fixtures.find((f) => f.start > Date.now());
+		throw new NoLiveOddsError(
+			next
+				? `${next.p1} vs ${next.p2} (${new Date(next.start).toUTCString().replace(":00 GMT", " UTC")})`
+				: null,
+		);
+	}
 	throw lastErr ?? new Error("TxLINE unreachable");
+}
+
+/** Thrown when the feed is healthy but no match is in play right now. */
+export class NoLiveOddsError extends Error {
+	constructor(nextFixture: string | null) {
+		super(
+			nextFixture
+				? `No live odds right now — no match is in play. Next fixture: ${nextFixture}. Capital stays in yield.`
+				: "No live odds right now — no match is in play. Capital stays in yield.",
+		);
+		this.name = "NoLiveOddsError";
+	}
+}
+
+type FixtureRef = { fixtureId: string; p1: string; p2: string; start: number };
+
+/** Real fixtures feed, sorted in-play/nearest first. Empty on any failure. */
+async function listFixtures(
+	origin: string,
+	headers: Record<string, string>,
+): Promise<FixtureRef[]> {
+	try {
+		const res = await fetch(`${origin}/api/fixtures/snapshot`, { headers });
+		if (!res.ok) return [];
+		const body = (await res.json()) as unknown;
+		const list = Array.isArray(body) ? (body as Record<string, unknown>[]) : [];
+		const now = Date.now();
+		return list
+			.map((f) => ({
+				fixtureId: String(f.FixtureId ?? f.fixtureId ?? ""),
+				p1: String(f.Participant1 ?? f.participant1 ?? ""),
+				p2: String(f.Participant2 ?? f.participant2 ?? ""),
+				start: Number(f.StartTime ?? f.startTime ?? 0),
+			}))
+			.filter((f) => f.fixtureId)
+			// In-play (started but recent) first, then soonest upcoming
+			.sort((a, b) => Math.abs(a.start - now) - Math.abs(b.start - now));
+	} catch {
+		return [];
+	}
 }
 
 /**
