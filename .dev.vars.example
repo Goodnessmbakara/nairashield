@@ -1,5 +1,5 @@
 # Copy to .dev.vars for local wrangler dev (never commit real secrets).
-# Agent policy (YIELD_APY, trade size, margins, etc.) is NOT here —
+# Agent policy (yield APY, trade size, margins, etc.) is NOT here —
 # edit src/agent/config.ts → AGENT_POLICY.
 
 # ── Google OAuth ──────────────────────────────────────────
@@ -9,12 +9,19 @@ SESSION_SECRET=
 WORKER_URL=http://127.0.0.1:8787
 FRONTEND_URL=http://127.0.0.1:4321
 
-# ── Solana (required for Kamino withdraw/deposit) ─────────
+# ── Solana (agent wallet — signs Kamino + Jupiter txs) ────
 # SOLANA_PRIVATE_KEY=
-# RPC_URL=https://api.devnet.solana.com
+# RPC_URL=https://api.mainnet-beta.solana.com
 
 # ── Integrations (required for live ticks — no mock fallback) ─
-# TXLINE_API_URL=
+# TxLINE: activate via scripts/txline-activation/activate.ts (needs mainnet SOL)
+# TXLINE_API_URL=https://txline.txodds.com
 # TXLINE_API_KEY=
-# BETDEX_API_URL=https://prod.api.btdx.io
-# BETDEX_API_KEY=
+
+# Jupiter Predict (execution venue): free key from portal.jup.ag/api-keys
+# JUPITER_API_KEY=
+# JUPITER_MARKET_MAP=
+
+# Kamino (mainnet — must match mainnet RPC + mainnet USDC)
+# KAMINO_MARKET_PUBKEY=7u3HeHxYDLhnCoErrtycNokbQYbWGzLs6JSDqGAv5PfF
+# USDC_MINT_PUBKEY=EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v
