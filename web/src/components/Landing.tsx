@@ -22,7 +22,7 @@ export default function Landing() {
       <div className="relative flex min-h-dvh w-full flex-col overflow-x-hidden bg-background">
         <div className="hero-atmosphere w-full">
           <div className="hero-atmosphere__media" aria-hidden="true">
-            <img alt="" decoding="async" fetchPriority="high" src="/bg.jpg" />
+            <img alt="" decoding="async" fetchpriority="high" src="/bg.jpg" />
           </div>
           <div className="hero-atmosphere__veil" aria-hidden="true" />
 

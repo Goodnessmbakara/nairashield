@@ -12,6 +12,8 @@ import {
 } from "@heroui/react";
 import { Icon } from "@iconify/react";
 import DecisionFeed from "./DecisionFeed";
+import StatCard from "./ui/StatCard";
+import GateCard from "./ui/GateCard";
 import LazyActivityChart from "./ui/LazyActivityChart";
 import AuthCard from "./auth/AuthCard";
 import DashboardSidebar from "./dashboard/DashboardSidebar";
@@ -21,24 +23,6 @@ import { dashboardNav, type DashboardView } from "./dashboard/sidebar-items";
 import { heldSeriesFromTicks, checksSeriesFromTicks } from "../lib/chart-from-ticks";
 import { useAgent } from "../hooks/useAgent";
 import { useAuth } from "../hooks/useAuth";
-
-type KpiProps = {
-  title: string;
-  value: string;
-  hint: string;
-};
-
-const KpiCard = ({ title, value, hint }: KpiProps) => (
-  <Card className="border border-transparent bg-content1 dark:border-default-100">
-    <CardBody className="gap-1 p-4">
-      <p className="text-small font-medium text-default-500">{title}</p>
-      <p className="font-display text-2xl font-semibold tabular-nums text-foreground">
-        {value}
-      </p>
-      <p className="text-tiny text-default-400">{hint}</p>
-    </CardBody>
-  </Card>
-);
 
 const SIDEBAR_KEY = "ns_sidebar_compact";
 const VIEW_KEY = "ns_dashboard_view";
@@ -135,7 +119,7 @@ export default function Dashboard() {
                 ? `${window.location.origin}/dashboard`
                 : undefined
             }
-            subtitle="Sign up or sign in with Google to open the live dashboard and run agent checks"
+            subtitle="Continue with Google to open the live dashboard and run agent checks"
             title="Continue with Google"
           />
         </div>
@@ -155,25 +139,33 @@ export default function Dashboard() {
   const statusBanner =
     latest?.decision?.reason &&
     /TxLINE|Kamino|BetDEX|not configured|not wired/i.test(latest.decision.reason) ? (
-      <p className="mt-3 rounded-medium border border-default-200 bg-content2 px-3 py-2 text-small text-default-600">
-        Latest agent status: {latest.decision.reason}
-      </p>
+      <GateCard
+        description={latest.decision.reason}
+        icon="solar:plug-circle-linear"
+        title="Agent needs setup"
+        tone="warning"
+      />
     ) : null;
 
   const kpis = (
     <dl className="grid w-full grid-cols-1 gap-3 sm:grid-cols-3 sm:gap-4">
-      <KpiCard
+      <StatCard
         hint="this session"
+        icon="solar:pulse-linear"
         title="Checks"
         value={observed > 0 ? String(observed) : "-"}
       />
-      <KpiCard
+      <StatCard
         hint="capital moved"
+        icon="solar:arrow-right-up-linear"
+        share={observed > 0 ? trades / observed : undefined}
         title="Opportunities taken"
         value={observed > 0 ? String(trades) : "-"}
       />
-      <KpiCard
+      <StatCard
         hint="stayed earning"
+        icon="solar:safe-square-linear"
+        share={observed > 0 ? holds / observed : undefined}
         title="Kept earning"
         value={observed > 0 ? String(holds) : "-"}
       />
@@ -199,9 +191,14 @@ export default function Dashboard() {
   const oddsPanel = (
     <Card className="border border-transparent bg-content1 dark:border-default-100">
       <CardBody className="gap-4 p-5">
-        <h2 className="font-display text-medium font-semibold text-foreground">
-          Latest market odds
-        </h2>
+        <div className="flex items-center gap-2.5">
+          <div className="flex rounded-medium border border-default-100 bg-default-50 p-1.5">
+            <Icon className="text-default-500" icon="solar:chart-2-linear" width={16} />
+          </div>
+          <h2 className="font-display text-medium font-semibold text-foreground">
+            Latest market odds
+          </h2>
+        </div>
         {latestOdds ? (
           <div className="flex flex-col gap-3">
             <div className="rounded-medium border border-default-200 bg-content2 px-3 py-3">
@@ -227,7 +224,10 @@ export default function Dashboard() {
             </div>
           </div>
         ) : (
-          <div className="rounded-medium border border-dashed border-default-200 px-3 py-8 text-center">
+          <div className="flex flex-col items-center rounded-medium border border-dashed border-default-200 px-3 py-8 text-center">
+            <div className="mb-3 flex rounded-medium border border-default-100 bg-default-50 p-2">
+              <Icon className="text-default-400" icon="solar:chart-2-linear" width={20} />
+            </div>
             <p className="text-small text-default-500">No odds yet</p>
             <p className="mt-1 text-tiny text-default-400">
               When the agent takes an opportunity, the market and spread show here.
@@ -321,11 +321,18 @@ export default function Dashboard() {
           <main className="min-h-0 flex-1 overflow-y-auto">
             <div className="mx-auto w-full max-w-7xl px-4 py-6 sm:px-6 sm:py-8">
               {(error || statusBanner) && (
-                <div className="mb-5 max-w-2xl">
+                <div className="mb-5 flex max-w-2xl flex-col gap-3">
                   {error && (
-                    <p className="rounded-medium border border-warning-200 bg-warning-50/60 px-3 py-2 text-small text-warning-800">
-                      {error}
-                    </p>
+                    <GateCard
+                      actionIcon="solar:refresh-linear"
+                      actionLabel={configured ? "Try again" : undefined}
+                      description={error}
+                      icon="solar:danger-triangle-bold"
+                      isActionLoading={loading}
+                      onAction={configured ? () => poll() : undefined}
+                      title="Could not run the check"
+                      tone="danger"
+                    />
                   )}
                   {statusBanner}
                 </div>

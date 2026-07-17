@@ -27,7 +27,7 @@ export default function NeedHelp() {
             Need help?
           </h2>
           <p className="mt-2 text-small leading-6 text-default-500">
-            Questions about funding, markets, or how the agent decides. Sign up or sign in and we will pick it
+            Questions about funding, markets, or how the agent decides. Sign in and we will pick it
             up from there.
           </p>
         </div>
