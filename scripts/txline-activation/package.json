@@ -1,0 +1,24 @@
+{
+  "name": "txline-activation",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Isolated env for TxLINE (TxODDS) API-token activation. Pins @coral-xyz/anchor@0.32.1 so it can parse the Anchor 0.30+/0.32 txoracle IDL without touching the root node_modules (klend-sdk depends on anchor 0.28).",
+  "type": "commonjs",
+  "scripts": {
+    "discover": "tsx discover-pricing.ts",
+    "activate": "tsx activate.ts",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@coral-xyz/anchor": "0.32.1",
+    "@solana/spl-token": "^0.4.12",
+    "@solana/web3.js": "^1.95",
+    "axios": "^1.7.9",
+    "bs58": "^6.0.0",
+    "tweetnacl": "^1.0.3"
+  },
+  "devDependencies": {
+    "tsx": "^4.19.2",
+    "typescript": "^5.7.2"
+  }
+}

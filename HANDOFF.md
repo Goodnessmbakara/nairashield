@@ -224,30 +224,42 @@ Copy the output `TXLINE_API_KEY` into `.dev.vars`.
 ## 💰 Kamino Finance — Yield Integration
 
 ### Status
-The `klend-sdk` v9.1.5 deposit/withdraw is wired and **typechecks clean**. It will execute a real on-chain transaction the moment `KAMINO_MARKET_PUBKEY` and `SOLANA_PRIVATE_KEY` are populated and the wallet holds USDC.
+The `klend-sdk` v9.1.5 API is wired (correct method shapes, V2→V1 instruction
+mapping, `getReservesByMint`). Deposit/withdraw fail **closed** (honest error, never
+a fabricated balance) but are **not yet executable**: `klend-sdk` v9.1.5 depends on
+`@solana/kit` (web3.js v2), while this project pins `@solana/web3.js` v1.
+`KaminoMarket.load` needs a kit `Rpc` and `owner` needs a kit `TransactionSigner`;
+passing a v1 `Connection`/`Keypair` throws at first call. Executing for real
+requires wiring `createSolanaRpc(rpcUrl)` + a kit signer (in progress).
 
 ### Finding a Kamino Market Address
 
-**Mainnet** — The primary Kamino main market:
+**Mainnet** — The primary Kamino main market (verified against klend-sdk + Kamino docs):
 ```
-7u3HeHxYDLhnCoErrpiSyH7yZ2j1eK22D5y1vL1p7jP4
+7u3HeHxYDLhnCoErrtycNokbQYbWGzLs6JSDqGAv5PfF
 ```
 
-**Devnet** — No stable public Kamino market exists. Options:
-1. Use [Kamino app devnet](https://devnet.kamino.finance) and note the market address from the URL
-2. Or contact Kamino team on Discord for a current devnet market address
+**Devnet** — No stable public Kamino market exists, so the coherent path is
+**mainnet-only** (market + RPC + USDC mint all mainnet). A mainnet market cannot be
+used with a devnet RPC or the devnet USDC mint — mixing networks makes the market
+load return null.
 
-Set in `.dev.vars`:
+Set in `.dev.vars` (all mainnet, coherent):
 ```
-KAMINO_MARKET_PUBKEY=7u3HeHxYDLhnCoErrpiSyH7yZ2j1eK22D5y1vL1p7jP4
-USDC_MINT_PUBKEY=4zMMC9srt5Ri5X14GAgXhaHii3GnPAEERYPJgZJDncDU  # devnet USDC
+RPC_URL=https://api.mainnet-beta.solana.com          # paid RPC recommended (public is rate-limited)
+KAMINO_MARKET_PUBKEY=7u3HeHxYDLhnCoErrtycNokbQYbWGzLs6JSDqGAv5PfF
+USDC_MINT_PUBKEY=EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v  # mainnet USDC (NOT devnet)
 ```
+The wallet must already hold real USDC (deposit transfers from the owner's USDC ATA;
+zero balance fails at simulation) plus some SOL for fees/ATA rent.
 
 ### Key SDK Behavior (klend-sdk v9.1.5)
-- `KaminoAction.buildDepositTxns` / `buildWithdrawTxns` return **V2 Instruction objects**
-- We map them to V1 `TransactionInstruction` for `@solana/web3.js` v1 compatibility
+- `KaminoAction.buildDepositTxns` / `buildWithdrawTxns` take a **single props object**
+  (`useV2Ixs`, `scopeRefreshConfig`, `currentSlot` are required) and return V2 `Instruction`s
+- We map V2 `Instruction` → v1 `TransactionInstruction` (role decode: signer = role 2|3, writable = role 1|3)
 - `getReservesByMint(address)` returns an array — we take `[0]`
-- Amount is in **raw lamports** — multiply `amountUsdc * 1_000_000` for USDC (6 decimals)
+- Amount is in **raw base units** — `amountUsdc * 1_000_000` for USDC (6 decimals)
+- `KaminoMarket.load(rpc, …)` / `owner` require **`@solana/kit` (web3.js v2)** objects, not v1
 
 ---
 
