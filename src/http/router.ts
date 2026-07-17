@@ -94,6 +94,21 @@ export async function handleFetch(request: Request, env: Env): Promise<Response>
 	}
 
 	// ── Agent: tick ───────────────────────────────────────────────────
+	// ── Agent: external cron trigger (secret-gated, no session) ───────
+	// Lets a reliable external scheduler run the autonomous tick when
+	// Cloudflare's free-tier cron is not firing. Not public: requires the
+	// shared CRON_SECRET. Never returns user data.
+	if ((method === "POST" || method === "GET") && path === "/agent/run") {
+		const key = url.searchParams.get("key") || request.headers.get("X-Cron-Key") || "";
+		if (!env.CRON_SECRET || key !== env.CRON_SECRET) {
+			return json({ error: "forbidden" }, 403);
+		}
+		const tick = await runAgentTick(env);
+		// Self-report the worker's own KV view (bypasses CLI consistency lag).
+		const historyCount = (await listTicks(env)).length;
+		return json({ status: tick.status, action: tick.decision.action, at: tick.at, historyCount });
+	}
+
 	if ((method === "POST" || method === "GET") && path === "/agent/tick") {
 		const auth = await requireSession(request, env);
 		if (auth instanceof Response) return auth;

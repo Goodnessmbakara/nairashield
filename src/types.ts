@@ -20,6 +20,9 @@ export interface Env {
 	FRONTEND_URL: string;
 	SESSION_SECRET: string;
 
+	/** Shared secret for the external cron trigger (GET /agent/run?key=…). */
+	CRON_SECRET?: string;
+
 	/** Integration credentials (optional until wired) */
 	TXLINE_API_URL?: string;
 	TXLINE_API_KEY?: string;
