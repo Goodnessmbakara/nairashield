@@ -20,6 +20,10 @@ export const AGENT_POLICY = {
 	maxOpenPositions: 3,
 	/** Sharp-movement flag: min relative odds change between ticks (3%) */
 	movementThreshold: 0.03,
+	/** Take-profit: close early when implied win-probability moved this many points in our favor */
+	takeProfitEdge: 0.08,
+	/** Stop-loss: close early when it moved this many points against us */
+	stopLossEdge: 0.06,
 	/** Default RPC if env.RPC_URL unset */
 	defaultRpcUrl: "https://api.devnet.solana.com",
 } as const;
@@ -32,6 +36,8 @@ export type AgentConfig = {
 	eventHorizonHours: number;
 	maxOpenPositions: number;
 	movementThreshold: number;
+	takeProfitEdge: number;
+	stopLossEdge: number;
 	rpcUrl: string;
 	txlineApiUrl: string;
 	txlineApiKey: string;
@@ -79,6 +85,8 @@ export function loadAgentConfig(env: Env): AgentConfig {
 		eventHorizonHours: p.eventHorizonHours,
 		maxOpenPositions: p.maxOpenPositions,
 		movementThreshold: p.movementThreshold,
+		takeProfitEdge: p.takeProfitEdge,
+		stopLossEdge: p.stopLossEdge,
 		rpcUrl: env.RPC_URL || p.defaultRpcUrl,
 		txlineApiUrl: (env.TXLINE_API_URL || "").replace(/\/$/, ""),
 		txlineApiKey: env.TXLINE_API_KEY || "",

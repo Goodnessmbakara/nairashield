@@ -31,6 +31,7 @@ import {
 } from "./store";
 import { buildOpenPosition, settleDuePositions } from "./settlement";
 import { detectOddsMovement } from "./movement";
+import { manageOpenPositions } from "./risk";
 import { fetchLatestOdds, NoLiveOddsError } from "../integrations/txline";
 import { getYieldPosition, withdrawYield, depositYield } from "../integrations/kamino";
 import { placeMakerOrder } from "../integrations/jupiter";
@@ -95,8 +96,12 @@ export async function runAgentTick(env: Env): Promise<AgentTickResult> {
 			config.movementThreshold,
 		);
 
-		// 0. Settlement — only with real BetDEX settlement data
+		// 0. Settlement — only with real venue settlement data
 		const settlements = await settleDuePositions(env, config, market);
+
+		// 0b. TP/SL risk manager — mark open positions to market on the live
+		// odds; close early on take-profit or stop-loss (real Jupiter closes).
+		const riskExits = await manageOpenPositions(env, config, market);
 
 		// 2. Real yield snapshot (null if never funded on-chain)
 		const yieldPosition = await getYieldPosition(env, config);
@@ -132,7 +137,10 @@ export async function runAgentTick(env: Env): Promise<AgentTickResult> {
 				projection,
 				movement,
 				status: settlements.some((s) => s.success) ? "Settled" : "Skipped",
-				execution: settlements.length ? { settlements } : undefined,
+				execution:
+					settlements.length || riskExits.length
+						? { settlements: settlements.length ? settlements : undefined, riskExits: riskExits.length ? riskExits : undefined }
+						: undefined,
 			});
 		}
 
@@ -161,7 +169,7 @@ export async function runAgentTick(env: Env): Promise<AgentTickResult> {
 				},
 				movement,
 				status: settlements.some((s) => s.success) ? "Settled" : "Skipped",
-				execution: { settlements },
+				execution: { settlements, riskExits: riskExits.length ? riskExits : undefined },
 			});
 		}
 
@@ -169,9 +177,10 @@ export async function runAgentTick(env: Env): Promise<AgentTickResult> {
 		let status: AgentTickResult["status"] = settlements.some((s) => s.success)
 			? "Settled"
 			: "Skipped";
-		let execution: TickExecution | undefined = settlements.length
-			? { settlements }
-			: undefined;
+		let execution: TickExecution | undefined =
+			settlements.length || riskExits.length
+				? { settlements: settlements.length ? settlements : undefined, riskExits: riskExits.length ? riskExits : undefined }
+				: undefined;
 
 		if (decision.action === "TRADE") {
 			const exec = await executeTradePath(
@@ -184,6 +193,7 @@ export async function runAgentTick(env: Env): Promise<AgentTickResult> {
 			execution = {
 				...exec,
 				settlements: settlements.length ? settlements : undefined,
+				riskExits: riskExits.length ? riskExits : undefined,
 			};
 			if (exec.aborted) {
 				status = "Aborted";
@@ -204,6 +214,7 @@ export async function runAgentTick(env: Env): Promise<AgentTickResult> {
 			}
 		}
 
+		const exitNote = describeRiskExits(riskExits);
 		return finishTick({
 			id,
 			started,
@@ -211,7 +222,7 @@ export async function runAgentTick(env: Env): Promise<AgentTickResult> {
 			env,
 			market,
 			yieldPosition: (await getYieldPosition(env, config)) ?? yieldPosition,
-			decision,
+			decision: exitNote ? { ...decision, reason: `${exitNote} ${decision.reason}` } : decision,
 			status,
 			execution,
 			movement,
@@ -232,6 +243,18 @@ export async function runAgentTick(env: Env): Promise<AgentTickResult> {
 		await appendTick(env, tick);
 		return tick;
 	}
+}
+
+
+function describeRiskExits(exits: import("../types").RiskExit[]): string {
+	const done = exits.filter((x) => x.success);
+	if (done.length === 0) return "";
+	return done
+		.map(
+			(x) =>
+				`${x.reason === "take_profit" ? "Took profit on" : "Cut loss on"} ${x.team} (${x.edgePoints > 0 ? "+" : ""}${Math.round(x.edgePoints * 100)} pts).`,
+		)
+		.join(" ");
 }
 
 async function finishTick(args: {

@@ -165,6 +165,65 @@ export async function placeMakerOrder(
 }
 
 /**
+ * Close a position early (sell all contracts) — the TP/SL exit path.
+ * DELETE /positions/{positionPubkey} returns an unsigned transaction which
+ * the agent signs and submits, exactly like order placement. Fail-closed:
+ * any failure returns success:false and the position stays open.
+ */
+export async function closePosition(
+	config: AgentConfig,
+	orderId: string,
+): Promise<{ success: boolean; txid?: string; error?: string }> {
+	const [, positionPubkey] = orderId.split("|");
+	if (!config.jupiterApiKey) return { success: false, error: "Jupiter not configured" };
+	if (!positionPubkey) return { success: false, error: "No positionPubkey recorded on this order" };
+	if (!config.solanaPrivateKey) return { success: false, error: "Agent wallet not configured" };
+
+	try {
+		const res = await fetch(
+			`${config.jupiterApiUrl}/positions/${encodeURIComponent(positionPubkey)}`,
+			{
+				method: "DELETE",
+				headers: {
+					accept: "application/json",
+					"content-type": "application/json",
+					"x-api-key": config.jupiterApiKey,
+				},
+			},
+		);
+		if (!res.ok) {
+			const text = await res.text().catch(() => "");
+			return { success: false, error: `Jupiter close HTTP ${res.status}${text ? `: ${text.slice(0, 160)}` : ""}` };
+		}
+		const body = (await res.json()) as JupiterOrderResponse;
+		if (!body.transaction) {
+			return { success: false, error: "Jupiter close response missing transaction" };
+		}
+
+		const keypair = Keypair.fromSecretKey(bs58.decode(config.solanaPrivateKey));
+		const tx = VersionedTransaction.deserialize(
+			Uint8Array.from(atob(body.transaction), (c) => c.charCodeAt(0)),
+		);
+		tx.sign([keypair]);
+		const connection = new Connection(config.rpcUrl, "confirmed");
+		const txid = await connection.sendRawTransaction(tx.serialize(), { skipPreflight: true });
+		if (body.txMeta?.blockhash && body.txMeta?.lastValidBlockHeight) {
+			await connection.confirmTransaction(
+				{
+					signature: txid,
+					blockhash: body.txMeta.blockhash,
+					lastValidBlockHeight: body.txMeta.lastValidBlockHeight,
+				},
+				"confirmed",
+			);
+		}
+		return { success: true, txid };
+	} catch (e) {
+		return { success: false, error: e instanceof Error ? e.message : String(e) };
+	}
+}
+
+/**
  * Read real settlement state. Order fill status comes from
  * GET /orders/status/{orderPubkey}; realized value only from an explicitly
  * resolved position. Anything unconfirmed reports settled:false — never
