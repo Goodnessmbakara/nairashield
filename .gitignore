@@ -6,3 +6,5 @@ dist/
 .dev.vars
 .env
 .brand-preview/
+scripts/txline-activation/node_modules/
+scripts/_txodds_ref/

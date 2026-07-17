@@ -3,7 +3,7 @@
  *
  * Strategy (research pivot): In-Play Market Making — NOT arbitrage.
  * TxLINE odds = fair value baseline.
- * Quote maker prices on BetDEX with AGENT_POLICY.makerMargin (config.ts).
+ * Quote prices on Jupiter Predict with AGENT_POLICY.makerMargin (config.ts).
  * Only TRADE when Y_net > 0 and Y_net/C >= minEdge after idle-yield cost.
  */
 
@@ -40,7 +40,7 @@ export async function decide(env: Env, input: BrainInput): Promise<Decision> {
 	const system = [
 		"You are NairaShield, an in-play market-making agent on Solana.",
 		"Idle USDC earns Kamino yield. TxLINE odds are fair value — never arbitrage them against themselves.",
-		"When TRADING you place maker limit orders on BetDEX around TxLINE fair value with a small margin.",
+		"When TRADING you place orders on Jupiter Predict around TxLINE fair value with a small margin.",
 		"Only TRADE if expected Y_net (spread capture minus opportunity cost of leaving yield) is positive.",
 		"Respond with ONLY valid JSON (no markdown):",
 		'{"action":"TRADE"|"HOLD","team"?:string,"spread"?:number,"side"?:"BACK"|"LAY","reason":string,"edge"?:number,"yNet"?:number}',

@@ -12,7 +12,7 @@ import type { AgentConfig } from "./config";
 import type { Env, MarketOdds, OpenPosition, SettlementResult } from "../types";
 import { listOpenPositions, updatePosition } from "./store";
 import { depositYield } from "../integrations/kamino";
-import { fetchOrderSettlement } from "../integrations/betdex";
+import { fetchOrderSettlement } from "../integrations/jupiter";
 import { round4 } from "./math";
 
 export async function settleDuePositions(
@@ -63,7 +63,7 @@ async function settleOne(
 			pnlUsdc: 0,
 			returnedUsdc: 0,
 			success: false,
-			error: "Cannot settle: BetDEX not configured or order id missing",
+			error: "Cannot settle: Jupiter Predict not configured or order id missing",
 		};
 	}
 
@@ -74,7 +74,7 @@ async function settleOne(
 			pnlUsdc: 0,
 			returnedUsdc: 0,
 			success: false,
-			error: settlement.error || "Order not settled on BetDEX yet",
+			error: settlement.error || "Order not settled on Jupiter Predict yet",
 		};
 	}
 
@@ -97,7 +97,7 @@ async function settleOne(
 			pnlUsdc,
 			returnedUsdc,
 			success: false,
-			error: "Invalid settlement amounts from BetDEX",
+			error: "Invalid settlement amounts from Jupiter Predict",
 		};
 	}
 

@@ -234,6 +234,46 @@ export default function Dashboard() {
             </p>
           </div>
         )}
+
+        {latest?.movement?.length ? (
+          <div className="flex flex-col gap-2">
+            <p className="text-tiny font-medium text-default-500">
+              Sharp movement since last check
+            </p>
+            {latest.movement.map((m) => (
+              <div
+                key={m.outcome}
+                className="flex items-center justify-between rounded-medium border border-default-200 bg-content2 px-3 py-2"
+              >
+                <div className="flex min-w-0 items-center gap-2">
+                  <Icon
+                    className={
+                      m.direction === "shortening" ? "text-success" : "text-default-400"
+                    }
+                    icon={
+                      m.direction === "shortening"
+                        ? "solar:arrow-right-down-linear"
+                        : "solar:arrow-right-up-linear"
+                    }
+                    width={16}
+                  />
+                  <p className="truncate text-small text-foreground">{m.outcome}</p>
+                </div>
+                <p className="shrink-0 text-tiny tabular-nums text-default-500">
+                  {m.fromOdds} → {m.toOdds}{" "}
+                  <span
+                    className={
+                      m.direction === "shortening" ? "text-success" : "text-default-400"
+                    }
+                  >
+                    ({m.changePct > 0 ? "+" : ""}
+                    {Math.round(m.changePct * 1000) / 10}%)
+                  </span>
+                </p>
+              </div>
+            ))}
+          </div>
+        ) : null}
       </CardBody>
     </Card>
   );

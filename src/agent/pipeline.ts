@@ -30,9 +30,10 @@ import {
 	addOpenPosition,
 } from "./store";
 import { buildOpenPosition, settleDuePositions } from "./settlement";
+import { detectOddsMovement } from "./movement";
 import { fetchLatestOdds } from "../integrations/txline";
 import { getYieldPosition, withdrawYield, depositYield } from "../integrations/kamino";
-import { placeMakerOrder } from "../integrations/betdex";
+import { placeMakerOrder } from "../integrations/jupiter";
 import { decide } from "../ai/brain";
 import type { AgentConfig } from "./config";
 
@@ -64,6 +65,15 @@ export async function runAgentTick(env: Env): Promise<AgentTickResult> {
 		// 1. Real market feed
 		const market = await fetchLatestOdds(config);
 
+		// 1b. Sharp Movement Detector — compare against the PREVIOUS persisted
+		// snapshot of this fixture (must read before this tick is appended).
+		// No prior snapshot => no signal; nothing is synthesized.
+		const movement = detectOddsMovement(
+			await getLastTick(env),
+			market,
+			config.movementThreshold,
+		);
+
 		// 0. Settlement — only with real BetDEX settlement data
 		const settlements = await settleDuePositions(env, config, market);
 
@@ -73,8 +83,12 @@ export async function runAgentTick(env: Env): Promise<AgentTickResult> {
 		const openBooks = await listOpenPositions(env);
 		const booksFull = openBooks.length >= config.maxOpenPositions;
 
-		// Missing live capital → HOLD, do not invent a vault balance
+		// Missing live capital → HOLD, do not invent a vault balance.
+		// Still run the real brain on the real odds as a dry-run projection so the
+		// decision logic is observable before any capital is deployed.
 		if (!yieldPosition) {
+			const projection = await buildProjection(env, config, market, booksFull);
+			const wouldTrade = projection?.decision.action === "TRADE";
 			return finishTick({
 				id,
 				started,
@@ -84,11 +98,18 @@ export async function runAgentTick(env: Env): Promise<AgentTickResult> {
 				// omit yield — never fabricate a USDC balance
 				decision: {
 					action: "HOLD",
-					reason:
-						"No live Kamino position. Fund the agent wallet and deposit USDC before trading.",
+					reason: projection
+						? `No live Kamino capital, so nothing is executed. On the live odds the agent ${
+								wouldTrade
+									? `would place a maker quote — ${projection.decision.reason}`
+									: `would also hold — ${projection.decision.reason}`
+							}`
+						: "No live Kamino position. Fund the agent wallet and deposit USDC before trading.",
 					yieldApy: config.yieldApy,
 					makerMargin: config.makerMargin,
 				},
+				projection,
+				movement,
 				status: settlements.some((s) => s.success) ? "Settled" : "Skipped",
 				execution: settlements.length ? { settlements } : undefined,
 			});
@@ -117,6 +138,7 @@ export async function runAgentTick(env: Env): Promise<AgentTickResult> {
 							? `Settled confirmed books back to Kamino. ${decision.reason}`
 							: decision.reason,
 				},
+				movement,
 				status: settlements.some((s) => s.success) ? "Settled" : "Skipped",
 				execution: { settlements },
 			});
@@ -171,6 +193,7 @@ export async function runAgentTick(env: Env): Promise<AgentTickResult> {
 			decision,
 			status,
 			execution,
+			movement,
 		});
 	} catch (e) {
 		const detail = e instanceof Error ? e.message : String(e);
@@ -200,6 +223,8 @@ async function finishTick(args: {
 	decision: Decision;
 	status: AgentTickResult["status"];
 	execution?: TickExecution;
+	projection?: AgentTickResult["projection"];
+	movement?: AgentTickResult["movement"];
 }): Promise<AgentTickResult> {
 	const tick: AgentTickResult = {
 		id: args.id,
@@ -209,11 +234,46 @@ async function finishTick(args: {
 		market: args.market,
 		yield: args.yieldPosition,
 		execution: args.execution,
+		projection: args.projection,
+		movement: args.movement?.length ? args.movement : undefined,
 		openPositions: (await listOpenPositions(args.env)).length,
 		durationMs: Date.now() - args.started,
 	};
 	await appendTick(args.env, tick);
 	return tick;
+}
+
+/**
+ * Dry-run: run the real decision model on the real odds with a hypothetical,
+ * policy-sized balance. Purely for observability when no capital is deployed —
+ * nothing is stored or executed, and the balance is never surfaced as real.
+ * Best-effort: a failure here must never break the tick.
+ */
+async function buildProjection(
+	env: Env,
+	config: AgentConfig,
+	market: MarketOdds,
+	booksFull: boolean,
+): Promise<AgentTickResult["projection"] | undefined> {
+	try {
+		const hypothetical: YieldPosition = {
+			protocol: "kamino",
+			asset: "USDC",
+			balanceUsdc: config.tradeSizeUsdc,
+			apy: config.yieldApy,
+			updatedAt: new Date().toISOString(),
+			source: "projection",
+		};
+		const decision = await decide(env, {
+			market,
+			yieldPosition: hypothetical,
+			config,
+			booksFull,
+		});
+		return { decision, hypotheticalCapitalUsdc: config.tradeSizeUsdc };
+	} catch {
+		return undefined;
+	}
 }
 
 /**
@@ -256,7 +316,7 @@ async function executeTradePath(
 			withdrawTxid: withdraw.txid,
 			order,
 			aborted: true,
-			abortReason: order.error || "BetDEX order failed",
+			abortReason: order.error || "Jupiter Predict order failed",
 		};
 	}
 
