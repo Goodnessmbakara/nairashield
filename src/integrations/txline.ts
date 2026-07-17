@@ -112,7 +112,7 @@ async function fetchOddsSnapshot(
 				lastErr = new Error(`TxLINE HTTP ${res.status} @ ${url}: ${text}`);
 				continue;
 			}
-			const body = (await res.json()) as Record<string, unknown>;
+			const body = (await res.json()) as unknown;
 			return normalizeTxline(body, url);
 		} catch (e) {
 			lastErr = e instanceof Error ? e : new Error(String(e));
@@ -164,10 +164,43 @@ export async function fetchScoreSnapshot(
  * TxLINE wire format: TG users reported PascalCase keys in live payloads
  * while docs show camelCase. We read both to be safe.
  */
-function normalizeTxline(
-	body: Record<string, unknown>,
-	sourceUrl: string,
-): MarketOdds {
+function normalizeTxline(body: unknown, sourceUrl: string): MarketOdds {
+	// Snapshot endpoints return an ARRAY of odds elements (reference:
+	// subscription_free_tier.ts reads response.data[0]). Fixture-specific calls
+	// may return a single object. Handle both; an empty array means no live odds
+	// in the current interval, which is an honest "no odds" — not a parse failure.
+	if (Array.isArray(body)) {
+		for (const el of body) {
+			const parsed = normalizeElement(el);
+			if (parsed) return parsed;
+		}
+		throw new Error(
+			`TxLINE snapshot from ${sourceUrl} returned ${
+				body.length === 0
+					? "an empty array (no live odds in the current interval)"
+					: `${body.length} element(s) but none had usable odds`
+			}.`,
+		);
+	}
+
+	const parsed = normalizeElement(body);
+	if (parsed) return parsed;
+	throw new Error(
+		`TxLINE response from ${sourceUrl} contained no usable odds. Body keys: ${
+			body && typeof body === "object" ? Object.keys(body).join(", ") : typeof body
+		}`,
+	);
+}
+
+/**
+ * Normalize a single TxLINE odds element to internal MarketOdds.
+ * Returns null (rather than throwing) when the element carries no usable odds,
+ * so the array path can skip empties and try the next element.
+ */
+function normalizeElement(raw: unknown): MarketOdds | null {
+	if (!raw || typeof raw !== "object") return null;
+	const body = raw as Record<string, unknown>;
+
 	const match = String(
 		body.Match ?? body.match ??
 		body.Event ?? body.event ??
@@ -213,12 +246,7 @@ function normalizeTxline(
 		}
 	}
 
-	if (Object.keys(odds).length === 0) {
-		throw new Error(
-			`TxLINE response from ${sourceUrl} contained no usable odds. ` +
-			`Body keys: ${Object.keys(body).join(", ")}`,
-		);
-	}
+	if (Object.keys(odds).length === 0) return null;
 
 	const minuteRaw = body.Minute ?? body.minute;
 	const messageId = String(body.MessageId ?? body.messageId ?? "");

@@ -23,12 +23,20 @@ export interface Env {
 	/** Integration credentials (optional until wired) */
 	TXLINE_API_URL?: string;
 	TXLINE_API_KEY?: string;
-	BETDEX_API_URL?: string;
-	BETDEX_API_KEY?: string;
 
 	/** Kamino Finance addresses */
 	KAMINO_MARKET_PUBKEY?: string;
 	USDC_MINT_PUBKEY?: string;
+
+	/** Jupiter Predict (execution venue — Solana mainnet, no KYC, agent-signed) */
+	JUPITER_API_URL?: string;
+	/** Free key from portal.jup.ag/api-keys (registration, not identity KYC) */
+	JUPITER_API_KEY?: string;
+	/**
+	 * JSON map: TxLINE fixtureId -> { outcomes: { teamLabel: { marketId, side } } }.
+	 * Curated because TxLINE fixtures and Jupiter market ids share no common key.
+	 */
+	JUPITER_MARKET_MAP?: string;
 	// Agent policy (yieldApy, trade size, margins, etc.) lives in src/agent/config.ts — not env.
 }
 
@@ -39,7 +47,7 @@ export type AgentAction = "TRADE" | "HOLD" | "SETTLE";
 export type Decision = {
 	action: AgentAction;
 	team?: string;
-	/** Maker limit price (decimal odds) used on BetDEX */
+	/** Decision decimal odds recorded on the book (execution fills at market) */
 	spread?: number;
 	/** BACK | LAY */
 	side?: "BACK" | "LAY";
@@ -77,8 +85,12 @@ export type YieldPosition = {
 	/** Last known deposit tx */
 	lastTxid?: string;
 	updatedAt: string;
-	/** Only live snapshots are stored — never synthetic vaults */
-	source: "live";
+	/**
+	 * Only "live" snapshots are ever stored (store.ts rejects the rest on load).
+	 * "projection" is an ephemeral, never-persisted hypothetical used solely to
+	 * run the decision model on live odds for a dry-run — never a real balance.
+	 */
+	source: "live" | "projection";
 };
 
 export type TradeOrder = {
@@ -139,6 +151,23 @@ export type SettlementResult = {
 	error?: string;
 };
 
+/**
+ * Sharp odds movement between two consecutive real TxLINE snapshots.
+ * Derived only from persisted tick history — never synthesized.
+ */
+export type OddsMovement = {
+	outcome: string;
+	/** Decimal odds at the previous tick */
+	fromOdds: number;
+	/** Decimal odds now */
+	toOdds: number;
+	/** Relative change, e.g. -0.042 = odds shortened 4.2% (market moved toward this outcome) */
+	changePct: number;
+	direction: "shortening" | "drifting";
+	/** Previous snapshot timestamp (tick.at) */
+	since: string;
+};
+
 export type AgentTickResult = {
 	id: string;
 	at: string;
@@ -148,6 +177,17 @@ export type AgentTickResult = {
 	yield?: YieldPosition;
 	execution?: TickExecution;
 	openPositions?: number;
+	/**
+	 * Dry-run only: what the agent WOULD decide on the live odds if it held
+	 * policy-sized capital. Populated when there is no live position, so the
+	 * demo shows genuine model reasoning. Never executed, never a real balance.
+	 */
+	projection?: {
+		decision: Decision;
+		hypotheticalCapitalUsdc: number;
+	};
+	/** Sharp odds shifts vs the previous tick's snapshot of the same fixture */
+	movement?: OddsMovement[];
 	error?: string;
 	raw?: string;
 	/** ms spent in this tick */
