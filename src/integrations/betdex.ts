@@ -55,14 +55,13 @@ async function placeLive(
 				authorization: `Bearer ${config.betdexApiKey}`,
 			},
 			body: JSON.stringify({
-				side: side === "LAY" ? "SELL" : "BUY",
+				side: side,
 				type: "LIMIT",
 				timeInForce: "GTC",
-				selection: params.team,
+				selectionId: params.team,
 				marketId: params.matchId,
 				price: params.spread,
 				stake: params.sizeUsdc,
-				currency: "USDC",
 				meta: {
 					strategy: "nairashield_mm",
 					fairOdds: params.fairOdds,

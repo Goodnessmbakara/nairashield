@@ -7,10 +7,14 @@
  * (safe abort) rather than faking success.
  */
 
+import { Connection, PublicKey, Transaction, TransactionInstruction } from "@solana/web3.js";
+import { KaminoAction, KaminoMarket, VanillaObligation, PROGRAM_ID } from "@kamino-finance/klend-sdk";
+// @ts-ignore
+import BN from "bn.js";
 import type { AgentConfig } from "../agent/config";
 import type { Env, YieldPosition } from "../types";
 import { loadPosition, savePosition } from "../agent/store";
-import { getWalletPublicKey, hasWallet } from "../blockchain/wallet";
+import { getWalletPublicKey, hasWallet, loadKeypair } from "../blockchain/wallet";
 
 export type YieldOpResult = {
 	success: boolean;
@@ -72,22 +76,86 @@ export async function withdrawYield(
 		};
 	}
 
-	// Fail closed until klend withdraw instruction is wired.
-	// Never return success without a real chain txid.
-	const pubkey = getWalletPublicKey(env);
-	return {
-		success: false,
-		error: `Kamino withdraw not wired for ${pubkey ?? "wallet"}. Wire klend-sdk withdraw before executing trades.`,
-		balanceUsdc: balance,
-	};
+	if (!config.kaminoMarketPubKey || !config.usdcMintPubKey) {
+		return { success: false, error: "KAMINO_MARKET_PUBKEY or USDC_MINT_PUBKEY not configured", balanceUsdc: balance };
+	}
+
+	try {
+		const connection = new Connection(config.rpcUrl, "confirmed");
+		const marketPubkey = new PublicKey(config.kaminoMarketPubKey);
+		const usdcMint = new PublicKey(config.usdcMintPubKey);
+		// @ts-ignore: connection type mismatch with latest klend-sdk
+		const market = await KaminoMarket.load(connection, marketPubkey, 400);
+		if (!market) throw new Error("Could not load Kamino market");
+
+		const reserves = market.getReservesByMint(usdcMint.toString() as any);
+		if (!reserves || reserves.length === 0) throw new Error("USDC reserve not found in market");
+		const reserve = reserves[0];
+
+		const signer = loadKeypair(env);
+		
+		// klend expects BN for raw amounts (USDC has 6 decimals)
+		// @ts-ignore: bn.js missing types
+		const amountBn = new BN(Math.floor(amountUsdc * 1_000_000));
+		
+		const action = await KaminoAction.buildWithdrawTxns({
+			kaminoMarket: market,
+			amount: amountBn,
+			reserveAddress: reserve.address,
+			// @ts-ignore: Keypair to TransactionSigner mismatch
+			owner: signer,
+			obligation: new VanillaObligation(PROGRAM_ID),
+			useV2Ixs: false,
+			scopeRefreshConfig: undefined,
+			// @ts-ignore: currentSlot type mismatch
+			currentSlot: 0,
+		});
+
+		const rawInstructions = [...action.setupIxs, ...action.lendingIxs, ...action.cleanupIxs];
+		const instructions = rawInstructions.map((ix: any) => {
+			return new TransactionInstruction({
+				programId: new PublicKey(ix.programAddress),
+				keys: (ix.accounts || []).map((acc: any) => {
+					const role = acc.role ?? 0;
+					return {
+						pubkey: new PublicKey(acc.address),
+						isSigner: role === 2 || role === 3,
+						isWritable: role === 1 || role === 3,
+					};
+				}),
+				data: Buffer.from(ix.data || [])
+			});
+		});
+		const tx = new Transaction().add(...instructions);
+		
+		const { blockhash, lastValidBlockHeight } = await connection.getLatestBlockhash("confirmed");
+		tx.recentBlockhash = blockhash;
+		tx.feePayer = signer.publicKey;
+		tx.sign(signer);
+
+		const txid = await connection.sendRawTransaction(tx.serialize());
+		await connection.confirmTransaction({ signature: txid, blockhash, lastValidBlockHeight }, "confirmed");
+
+		return {
+			success: true,
+			txid,
+			balanceUsdc: balance - amountUsdc,
+		};
+	} catch (e) {
+		return {
+			success: false,
+			error: e instanceof Error ? e.message : String(e),
+			balanceUsdc: balance,
+		};
+	}
 }
 
 export async function depositYield(
 	env: Env,
-	_config: AgentConfig,
+	config: AgentConfig,
 	amountUsdc: number,
 ): Promise<YieldOpResult> {
-	const pos = await getYieldPosition(env, _config);
+	const pos = await getYieldPosition(env, config);
 	const balance = pos?.balanceUsdc ?? 0;
 
 	if (amountUsdc <= 0) {
@@ -101,13 +169,78 @@ export async function depositYield(
 		};
 	}
 
-	// Fail closed until klend deposit instruction is wired.
-	const pubkey = getWalletPublicKey(env);
-	return {
-		success: false,
-		error: `Kamino deposit not wired for ${pubkey ?? "wallet"}. Wire klend-sdk deposit before settlement redeposit.`,
-		balanceUsdc: balance,
-	};
+	if (!config.kaminoMarketPubKey || !config.usdcMintPubKey) {
+		return { success: false, error: "KAMINO_MARKET_PUBKEY or USDC_MINT_PUBKEY not configured", balanceUsdc: balance };
+	}
+
+	try {
+		const connection = new Connection(config.rpcUrl, "confirmed");
+		const marketPubkey = new PublicKey(config.kaminoMarketPubKey);
+		const usdcMint = new PublicKey(config.usdcMintPubKey);
+		// @ts-ignore: connection type mismatch with latest klend-sdk
+		const market = await KaminoMarket.load(connection, marketPubkey, 400);
+		if (!market) throw new Error("Could not load Kamino market");
+
+		const reserves = market.getReservesByMint(usdcMint.toString() as any);
+		if (!reserves || reserves.length === 0) throw new Error("USDC reserve not found in market");
+		const reserve = reserves[0];
+
+		const signer = loadKeypair(env);
+		
+		// klend expects BN for raw amounts (USDC has 6 decimals)
+		// @ts-ignore: bn.js missing types
+		const amountBn = new BN(Math.floor(amountUsdc * 1_000_000));
+		
+		const action = await KaminoAction.buildDepositTxns({
+			kaminoMarket: market,
+			amount: amountBn,
+			reserveAddress: reserve.address,
+			// @ts-ignore: Keypair to TransactionSigner mismatch
+			owner: signer,
+			obligation: new VanillaObligation(PROGRAM_ID),
+			useV2Ixs: false,
+			scopeRefreshConfig: undefined,
+			// @ts-ignore: currentSlot type mismatch
+			currentSlot: 0,
+		});
+
+		const rawInstructions = [...action.setupIxs, ...action.lendingIxs, ...action.cleanupIxs];
+		const instructions = rawInstructions.map((ix: any) => {
+			return new TransactionInstruction({
+				programId: new PublicKey(ix.programAddress),
+				keys: (ix.accounts || []).map((acc: any) => {
+					const role = acc.role ?? 0;
+					return {
+						pubkey: new PublicKey(acc.address),
+						isSigner: role === 2 || role === 3,
+						isWritable: role === 1 || role === 3,
+					};
+				}),
+				data: Buffer.from(ix.data || [])
+			});
+		});
+		const tx = new Transaction().add(...instructions);
+		
+		const { blockhash, lastValidBlockHeight } = await connection.getLatestBlockhash("confirmed");
+		tx.recentBlockhash = blockhash;
+		tx.feePayer = signer.publicKey;
+		tx.sign(signer);
+
+		const txid = await connection.sendRawTransaction(tx.serialize());
+		await connection.confirmTransaction({ signature: txid, blockhash, lastValidBlockHeight }, "confirmed");
+
+		return {
+			success: true,
+			txid,
+			balanceUsdc: balance + amountUsdc,
+		};
+	} catch (e) {
+		return {
+			success: false,
+			error: e instanceof Error ? e.message : String(e),
+			balanceUsdc: balance,
+		};
+	}
 }
 
 /**

@@ -36,6 +36,8 @@ export type AgentConfig = {
 	txlineApiKey: string;
 	betdexApiUrl: string;
 	betdexApiKey: string;
+	kaminoMarketPubKey: string;
+	usdcMintPubKey: string;
 };
 
 export function loadAgentConfig(env: Env): AgentConfig {
@@ -52,6 +54,8 @@ export function loadAgentConfig(env: Env): AgentConfig {
 		txlineApiKey: env.TXLINE_API_KEY || "",
 		betdexApiUrl: (env.BETDEX_API_URL || p.defaultBetdexApiUrl).replace(/\/$/, ""),
 		betdexApiKey: env.BETDEX_API_KEY || "",
+		kaminoMarketPubKey: env.KAMINO_MARKET_PUBKEY || "",
+		usdcMintPubKey: env.USDC_MINT_PUBKEY || "",
 	};
 }
 
@@ -60,7 +64,7 @@ export function integrationFlags(env: Env, config: AgentConfig) {
 		ai: Boolean(env.AI),
 		txline: Boolean(config.txlineApiKey && config.txlineApiUrl),
 		betdex: Boolean(config.betdexApiKey),
-		kamino: Boolean(env.SOLANA_PRIVATE_KEY),
+		kamino: Boolean(env.SOLANA_PRIVATE_KEY && config.kaminoMarketPubKey && config.usdcMintPubKey),
 		wallet: Boolean(env.SOLANA_PRIVATE_KEY),
 	};
 }

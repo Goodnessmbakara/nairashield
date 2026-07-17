@@ -25,6 +25,10 @@ export interface Env {
 	TXLINE_API_KEY?: string;
 	BETDEX_API_URL?: string;
 	BETDEX_API_KEY?: string;
+
+	/** Kamino Finance addresses */
+	KAMINO_MARKET_PUBKEY?: string;
+	USDC_MINT_PUBKEY?: string;
 	// Agent policy (yieldApy, trade size, margins, etc.) lives in src/agent/config.ts — not env.
 }
 
