@@ -18,7 +18,7 @@ const product = [
 const support = [
   { name: "FAQ", href: "#faq" },
   { name: "Need help", href: "#help" },
-  { name: "Sign up / Sign in", href: "/login" },
+  { name: "Sign in", href: "/login" },
 ];
 
 function FooterList({

@@ -9,13 +9,16 @@ function mapError(code: string | null): string | null {
   const map: Record<string, string> = {
     access_denied: "Google sign-in was cancelled.",
     invalid_state: "Sign-in expired. Try again.",
-    token_exchange: "Couldn’t finish Google sign-in. Check worker secrets.",
-    no_access_token: "Google didn’t return an access token.",
+    token_exchange: "Couldn’t finish signing you in. Try again.",
+    no_access_token: "Google didn’t complete the sign-in. Try again.",
     userinfo: "Couldn’t load your Google profile.",
-    incomplete_profile: "Google profile was missing email.",
-    auth_not_configured: "Google sign-in isn’t configured on the worker yet.",
+    incomplete_profile: "Your Google account didn’t share an email address.",
+    auth_not_configured: "Sign-in isn’t available right now.",
   };
-  return map[code] || `Sign-in error: ${code}`;
+  // Raw code goes to the console for debugging, never to the person signing in.
+  if (!map[code]) console.warn(`[auth] unmapped sign-in error: ${code}`);
+
+  return map[code] || "Something went wrong signing you in. Try again.";
 }
 
 export default function LoginPage() {

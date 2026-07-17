@@ -6,7 +6,7 @@
  */
 
 import React from "react";
-import { Button, Divider, Link, cn } from "@heroui/react";
+import { Button, Link, cn } from "@heroui/react";
 import { Icon } from "@iconify/react";
 import { googleSignInUrl, isAgentConfigured } from "../../lib/auth";
 import BrandMark from "../ui/BrandMark";
@@ -24,13 +24,19 @@ const AuthCard = React.forwardRef<HTMLDivElement, AuthCardProps>(
     {
       className,
       title = "Join NairaShield",
-      subtitle = "Sign up or sign in with Google to open your dashboard and run the agent",
+      subtitle = "Continue with Google to open your dashboard and run the agent",
       returnTo,
       error,
     },
     ref,
   ) => {
     const configured = isAgentConfigured();
+
+    React.useEffect(() => {
+      if (!configured) {
+        console.warn("[auth] PUBLIC_AGENT_URL is not set — Google sign-in cannot reach the worker.");
+      }
+    }, [configured]);
 
     const onGoogle = () => {
       if (!configured) return;
@@ -59,14 +65,14 @@ const AuthCard = React.forwardRef<HTMLDivElement, AuthCardProps>(
 
           {!configured && (
             <div className="rounded-medium border border-warning-100 bg-warning-50/60 px-3 py-2 text-tiny text-default-600">
-              Set <code className="font-medium">PUBLIC_AGENT_URL</code> so Google auth can reach the
-              worker.
+              Sign-in isn’t available right now. Please try again shortly.
             </div>
           )}
 
           <Button
             className="t-btn-press t-btn-secondary w-full font-medium"
             isDisabled={!configured}
+            radius="full"
             size="lg"
             startContent={<Icon icon="flat-color-icons:google" width={24} />}
             variant="bordered"
@@ -75,19 +81,8 @@ const AuthCard = React.forwardRef<HTMLDivElement, AuthCardProps>(
             Continue with Google
           </Button>
 
-          <p className="text-center text-tiny leading-5 text-default-500">
-            New here? That creates your account. Already have one? You sign in the same way.
-          </p>
-
-          <div className="flex items-center gap-4">
-            <Divider className="flex-1" />
-            <p className="shrink-0 text-tiny text-default-500">sign up · sign in</p>
-            <Divider className="flex-1" />
-          </div>
-
           <p className="text-center text-tiny leading-5 text-default-400">
-            We only use your Google account to identify you. Your agent runs on Cloudflare Workers
-            with a signed session. No passwords stored here.
+            We only use your Google account to identify you. No passwords stored here.
           </p>
 
           <p className="text-center text-small text-default-500">

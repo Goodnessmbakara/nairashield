@@ -178,6 +178,7 @@ const DashboardSidebar = React.memo(
             <Button
               className="justify-start text-default-500 data-[hover=true]:text-danger"
               color="danger"
+              radius="full"
               startContent={<Icon icon="solar:logout-2-linear" width={20} />}
               variant="light"
               onPress={onLogout}

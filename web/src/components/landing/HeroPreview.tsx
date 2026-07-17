@@ -36,7 +36,7 @@ const HeroPreview = React.forwardRef<HTMLDivElement, { className?: string }>(
               loading
                 ? "Loading live activity…"
                 : error
-                  ? "Sign up or sign in, then connect the agent for live graphs"
+                  ? "Sign in, then connect the agent for live graphs"
                   : "Run a few checks to plot activity"
             }
             height={300}
@@ -69,7 +69,7 @@ const HeroPreview = React.forwardRef<HTMLDivElement, { className?: string }>(
                 <div className="flex flex-1 flex-col items-center justify-center gap-1 py-10 text-center">
                   <p className="text-small text-default-500">No live decisions yet</p>
                   <p className="text-tiny text-default-400">
-                    Sign up or sign in, then run checks. Numbers only come from the real agent.
+                    Sign in, then run checks. Numbers only come from the real agent.
                   </p>
                 </div>
               )}
