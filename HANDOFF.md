@@ -2,6 +2,42 @@
 
 ---
 
+## ✅ Live Status (July 17 session)
+
+**The agent is live and making honest decisions on real data.** What was done:
+
+- **TxLINE ACTIVATED** — real on-chain `subscribe(1, 4)` on devnet
+  (tx `5oDTMvhajuAaMiUJ2o19BDwv3UhPnrE1tkGhYAWdvHb9WKUTcDFzdxtgFkaYMJdru7rcCEquPrmWySsT5WVsQZqo`),
+  paid entirely with pre-existing free devnet SOL. On-chain pricing matrix
+  shows devnet SL1 = **price 0 AND sampling 0 (free + real-time)**. Key is
+  wired in `.dev.vars`; the worker authenticates and reads the live
+  fixtures/odds feed.
+- **Execution venue = Jupiter Predict** (Solana mainnet, no KYC). BetDEX was
+  dropped (identity verification wall); Monaco Protocol was evaluated and
+  rejected (on-chain program dormant ~6 months — orders would never match).
+  `src/integrations/jupiter.ts` builds orders via `POST /orders`, signs the
+  returned transaction with the agent keypair, submits to mainnet.
+- **JUPITER_MARKET_MAP is live** for both remaining World Cup matches:
+  TxLINE fixture `18257865` (France–England, Jul 18) and `18257739`
+  (Spain–Argentina final, Jul 19) → 6 verified-open Jupiter markets.
+- **Sharp Movement Detector** (`src/agent/movement.ts`) — flags >3% odds
+  shifts between consecutive real snapshots; surfaces on the dashboard.
+- **No-live-odds handling** — devnet TxLINE serves per-fixture endpoints
+  only (global snapshots 404). The client sweeps per-fixture odds from the
+  real fixtures feed; a healthy-but-empty feed becomes an honest HOLD
+  naming the next real fixture, not an Error.
+- **LLM dry-run projection** — with no capital deployed, the real brain
+  still runs on the real odds and the tick reports what it *would* do
+  (typed `source:"projection"`, never persistable as a real balance).
+- Verified end-to-end: cron tick →
+  `HOLD — No live odds right now… Next fixture: <real fixture> — capital stays in yield.`
+
+**Still open:** public deploy (wrangler + Pages), demo video (record during
+a live match window: Jul 18 France–England or Jul 19 final), optional USDC
+funding for live Kamino/Jupiter execution.
+
+---
+
 ## ⚠️ Core Rule: No Mocks, No Fakes
 
 The agent **never** fabricates odds, vault balances, order IDs, or settlement PnL.
@@ -17,9 +53,10 @@ Cloudflare Worker (src/)
   ├── Cron * * * * *       — autonomous loop
   ├── GET/POST /auth/**    — Google OAuth + session
   └── src/integrations/
-        ├── txline.ts      — TxLINE odds client (confirmed live API)
-        ├── kamino.ts      — Kamino Finance yield routing (klend-sdk v9.1.5)
-        └── betdex.ts      — BetDEX maker order execution
+        ├── txline.ts      — TxLINE odds client (ACTIVATED — live devnet feed)
+        ├── kamino.ts      — Kamino Finance yield routing (klend-sdk v9.1.5, kit RPC)
+        └── jupiter.ts     — Jupiter Predict order execution (mainnet, no KYC)
+      src/agent/movement.ts — Sharp Movement Detector (odds shifts between ticks)
 
 Astro Frontend (web/)
   └── Dashboard + marketing landing page
@@ -36,12 +73,12 @@ Astro Frontend (web/)
 | `SESSION_SECRET` | HMAC secret ≥32 chars | `openssl rand -base64 32` |
 | `SOLANA_PRIVATE_KEY` | Base58 wallet private key | `solana-keygen new` |
 | `RPC_URL` | Solana RPC endpoint | `https://api.devnet.solana.com` or Helius/QuickNode |
-| `TXLINE_API_URL` | TxLINE API origin (no `/api` suffix) | See table below |
-| `TXLINE_API_KEY` | **Activated API token** from `/api/token/activate` | See activation flow below ↓ |
-| `BETDEX_API_URL` | BetDEX REST base URL | `https://prod.api.btdx.io` |
-| `BETDEX_API_KEY` | BetDEX API key | BetDEX dashboard |
-| `KAMINO_MARKET_PUBKEY` | Kamino market address | See Kamino section below ↓ |
-| `USDC_MINT_PUBKEY` | USDC mint (devnet default provided) | `4zMMC9srt5Ri5X14GAgXhaHii3GnPAEERYPJgZJDncDU` |
+| `TXLINE_API_URL` | TxLINE API origin (no `/api` suffix) — **SET: devnet** | `https://txline-dev.txodds.com` |
+| `TXLINE_API_KEY` | **Activated token — SET** (devnet SL1, free) | `scripts/txline-activation/activate-devnet.ts` |
+| `JUPITER_API_KEY` | Jupiter Predict portal key — **SET** (free, no KYC) | portal.jup.ag/api-keys |
+| `JUPITER_MARKET_MAP` | TxLINE fixtureId → Jupiter market map — **SET** | built from live feeds (see staging json) |
+| `KAMINO_MARKET_PUBKEY` | Kamino main market — **SET** | `7u3HeHxYDLhnCoErrtycNokbQYbWGzLs6JSDqGAv5PfF` |
+| `USDC_MINT_PUBKEY` | Mainnet USDC — **SET** | `EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v` |
 
 ---
 
@@ -263,17 +300,26 @@ zero balance fails at simulation) plus some SOL for fees/ATA rent.
 
 ---
 
-## 🎲 BetDEX — Maker Order Execution
+## 🪐 Jupiter Predict — Order Execution (replaces BetDEX)
 
-### Status
-Wired in `src/integrations/betdex.ts`. Needs `BETDEX_API_KEY`.
+### Status: WIRED + configured
+`src/integrations/jupiter.ts`. No KYC — only a free portal API key
+(portal.jup.ag/api-keys). Flow: `POST {api}/orders` (headers `x-api-key`)
+→ returns an **unsigned base64 transaction** → agent signs with
+`SOLANA_PRIVATE_KEY` → `sendRawTransaction` on mainnet. `orderId` stored as
+`orderPubkey|positionPubkey`; settlement reads
+`GET /orders/status/{orderPubkey}` + positions, and only reports PnL from
+an explicitly resolved position (no fabricated fills).
 
-```
-BETDEX_API_URL=https://prod.api.btdx.io
-BETDEX_API_KEY=<your-key>
-```
+Order model is binary YES/NO filled by Jupiter's keeper network — BACK a
+team buys its mapped side, LAY buys the opposite. The mapping TxLINE
+fixture → Jupiter market lives in `JUPITER_MARKET_MAP` (no shared id
+exists between the two systems; see `scripts/jupiter-markets.staging.json`
+for how it was built from both live APIs).
 
-Contact BetDEX for API credentials. The order schema in `betdex.ts` uses their v1 REST API. Exact field names may need adjustment once you have live credentials — check their docs at https://docs.btdx.io.
+Why not BetDEX: self-serve API keys require Basic Verification (KYC) which
+blocked the team. Why not Monaco on-chain: program dormant since Jan 2026
+(verified via getSignaturesForAddress) — orders would never match.
 
 ---
 
@@ -282,11 +328,14 @@ Contact BetDEX for API credentials. The order schema in `betdex.ts` uses their v
 ```
 POST /agent/tick  OR  cron * * * * *
   │
-  ├─ 1. fetchLatestOdds(config)         ← TxLINE (throws if not configured)
-  ├─ 2. settleOpenBooks()               ← BetDEX confirmed PnL only
-  ├─ 3. getYieldPosition(env)           ← Kamino KV snapshot (HOLD if none)
+  ├─ 1. fetchLatestOdds(config)         ← TxLINE (per-fixture sweep; empty feed
+  │                                        → honest HOLD naming next fixture)
+  ├─ 1b. detectOddsMovement()           ← >3% shifts vs previous snapshot
+  ├─ 2. settleOpenBooks()               ← Jupiter resolved-position PnL only
+  ├─ 3. getYieldPosition(env)           ← Kamino KV snapshot (HOLD if none;
+  │                                        dry-run projection still runs)
   ├─ 4. LLM brain (Llama 3)             ← Y_net decision
-  ├─ 5. withdrawYield() + placeOrder()  ← real on-chain + real REST
+  ├─ 5. withdrawYield() + placeMakerOrder() ← Kamino + Jupiter, both agent-signed
   └─ 6. persistTick()                   ← KV history
 ```
 
@@ -323,9 +372,13 @@ npx wrangler secret put GOOGLE_CLIENT_ID
 npx wrangler secret put GOOGLE_CLIENT_SECRET
 npx wrangler secret put SESSION_SECRET
 npx wrangler secret put SOLANA_PRIVATE_KEY
+npx wrangler secret put TXLINE_API_URL
 npx wrangler secret put TXLINE_API_KEY
-npx wrangler secret put BETDEX_API_KEY
+npx wrangler secret put JUPITER_API_KEY
+npx wrangler secret put JUPITER_MARKET_MAP
 npx wrangler secret put KAMINO_MARKET_PUBKEY
+npx wrangler secret put USDC_MINT_PUBKEY
+npx wrangler secret put RPC_URL
 
 # Deploy worker
 npx wrangler deploy

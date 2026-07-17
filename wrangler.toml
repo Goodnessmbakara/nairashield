@@ -9,20 +9,19 @@ binding = "AI"
 # Sessions (Google OAuth)
 [[kv_namespaces]]
 binding = "SESSIONS"
-id = "00000000000000000000000000000000"
-preview_id = "00000000000000000000000000000000"
+id = "580ac9eb72d64c4e85e4835a2520f006"
+preview_id = "580ac9eb72d64c4e85e4835a2520f006"
 
 # Agent tick history + yield position
 [[kv_namespaces]]
 binding = "AGENT_STATE"
-id = "00000000000000000000000000000001"
-preview_id = "00000000000000000000000000000001"
+id = "dcb1020ab5f84f8381b7180159ca0fed"
+preview_id = "dcb1020ab5f84f8381b7180159ca0fed"
 
 [triggers]
 crons = ["* * * * *"]
 
 [vars]
-WORKER_URL = "http://127.0.0.1:8787"
-FRONTEND_URL = "http://127.0.0.1:4321"
-RPC_URL = "https://api.devnet.solana.com"
+WORKER_URL = "https://nairashield-bot.zanbuilds.workers.dev"
+FRONTEND_URL = "https://nairashield.pages.dev"
 # Agent policy (yield, size, margins, horizons) is in src/agent/config.ts

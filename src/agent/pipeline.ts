@@ -31,7 +31,7 @@ import {
 } from "./store";
 import { buildOpenPosition, settleDuePositions } from "./settlement";
 import { detectOddsMovement } from "./movement";
-import { fetchLatestOdds } from "../integrations/txline";
+import { fetchLatestOdds, NoLiveOddsError } from "../integrations/txline";
 import { getYieldPosition, withdrawYield, depositYield } from "../integrations/kamino";
 import { placeMakerOrder } from "../integrations/jupiter";
 import { decide } from "../ai/brain";
@@ -62,8 +62,29 @@ export async function runAgentTick(env: Env): Promise<AgentTickResult> {
 			});
 		}
 
-		// 1. Real market feed
-		const market = await fetchLatestOdds(config);
+		// 1. Real market feed. A healthy feed with no match in play is a HOLD,
+		// not an error — the agent's correct move is to stay in yield.
+		let market: MarketOdds;
+		try {
+			market = await fetchLatestOdds(config);
+		} catch (e) {
+			if (e instanceof NoLiveOddsError) {
+				return finishTick({
+					id,
+					started,
+					config,
+					env,
+					decision: {
+						action: "HOLD",
+						reason: e.message,
+						yieldApy: config.yieldApy,
+						makerMargin: config.makerMargin,
+					},
+					status: "Skipped",
+				});
+			}
+			throw e;
+		}
 
 		// 1b. Sharp Movement Detector — compare against the PREVIOUS persisted
 		// snapshot of this fixture (must read before this tick is appended).
