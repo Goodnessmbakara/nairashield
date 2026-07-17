@@ -1,0 +1,17 @@
+{
+  "_comment": "Jupiter Predict market ids for the remaining 2026 WC matches (fetched live from api.jup.ag). To finish JUPITER_MARKET_MAP: replace TXLINE_FIXTURE_ID_* with real fixture ids from the activated TxLINE feed (GET /api/fixtures/snapshot), keeping team labels matching TxLINE's outcome labels.",
+  "TXLINE_FIXTURE_ID_FRA_ENG": {
+    "outcomes": {
+      "France": { "marketId": "POLY-2941971", "side": "YES" },
+      "Draw": { "marketId": "POLY-2941972", "side": "YES" },
+      "England": { "marketId": "POLY-2941973", "side": "YES" }
+    }
+  },
+  "TXLINE_FIXTURE_ID_ESP_ARG": {
+    "outcomes": {
+      "Spain": { "marketId": "POLY-2941974", "side": "YES" },
+      "Draw": { "marketId": "POLY-2941975", "side": "YES" },
+      "Argentina": { "marketId": "POLY-2941976", "side": "YES" }
+    }
+  }
+}
