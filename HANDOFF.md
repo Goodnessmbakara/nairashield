@@ -79,6 +79,9 @@ Astro Frontend (web/)
 | `JUPITER_MARKET_MAP` | TxLINE fixtureId → Jupiter market map — **SET** | built from live feeds (see staging json) |
 | `KAMINO_MARKET_PUBKEY` | Kamino main market — **SET** | `7u3HeHxYDLhnCoErrtycNokbQYbWGzLs6JSDqGAv5PfF` |
 | `USDC_MINT_PUBKEY` | Mainnet USDC — **SET** | `EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v` |
+| `FOSSAPAY_API_KEY` | FossaPay secret key for managed Solana wallets | `dashboard.fossapay.com` → API Keys (`fp_test_sk_` / `fp_live_sk_`) |
+| `FOSSAPAY_WEBHOOK_SECRET` | HMAC secret for `POST /webhooks/fossapay` | FossaPay dashboard webhooks |
+| `FOSSAPAY_API_URL` | Optional API base override | default `https://api-production.fossapay.com/api/v1` |
 
 ---
 
@@ -375,9 +378,15 @@ npx wrangler secret put JUPITER_MARKET_MAP
 npx wrangler secret put KAMINO_MARKET_PUBKEY
 npx wrangler secret put USDC_MINT_PUBKEY
 npx wrangler secret put RPC_URL
+npx wrangler secret put FOSSAPAY_API_KEY
+npx wrangler secret put FOSSAPAY_WEBHOOK_SECRET
 
 # Deploy worker
 npx wrangler deploy
+
+# Point FossaPay dashboard webhook to:
+#   https://nairashield-bot.zanbuilds.workers.dev/webhooks/fossapay
+# (events: deposit.completed at minimum)
 
 # Create KV namespace (if not done)
 npx wrangler kv namespace create SESSIONS

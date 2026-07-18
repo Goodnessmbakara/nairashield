@@ -16,13 +16,27 @@ import {
   getWallet,
   getBalance,
   getTransactions,
+  getProfile,
+  saveProfile,
   setWithdrawalAddress,
   requestWithdrawal,
   microToUsdc,
   type AccountWallet,
   type AccountBalance,
+  type AccountProfile,
   type FundTransaction,
 } from "../../lib/account";
+
+const emptyProfile = (): AccountProfile => ({
+  firstName: "",
+  lastName: "",
+  email: "",
+  mobileNumber: "",
+  dob: "",
+  address: "",
+  city: "",
+  country: "",
+});
 
 export default function PortfolioView() {
   const [wallet, setWallet] = React.useState<AccountWallet | null>(null);
@@ -36,24 +50,77 @@ export default function PortfolioView() {
   const [withdrawing, setWithdrawing] = React.useState(false);
   const [withdrawMsg, setWithdrawMsg] = React.useState<string | null>(null);
   const [copied, setCopied] = React.useState(false);
+  const [fossapayRequired, setFossapayRequired] = React.useState(false);
+  const [hasProfile, setHasProfile] = React.useState(false);
+  const [profileForm, setProfileForm] = React.useState<AccountProfile>(emptyProfile);
+  const [profileSaving, setProfileSaving] = React.useState(false);
+  const [profileError, setProfileError] = React.useState<string | null>(null);
+  const [walletError, setWalletError] = React.useState<string | null>(null);
 
   const load = React.useCallback(async () => {
     setLoading(true);
-    const [w, b, txs] = await Promise.all([getWallet(), getBalance(), getTransactions(20)]);
+    const [w, b, txs, profileRes] = await Promise.all([
+      getWallet(),
+      getBalance(),
+      getTransactions(20),
+      getProfile(),
+    ]);
     setWallet(w);
     setBalance(b);
     setTransactions(txs);
     if (w?.withdrawalAddress) setWithdrawalAddr(w.withdrawalAddress);
+
+    const needsFossa = Boolean(profileRes?.fossapayRequired || w?.fossapayRequired);
+    setFossapayRequired(needsFossa);
+    if (profileRes?.profile) {
+      setHasProfile(true);
+      setProfileForm(profileRes.profile);
+    } else {
+      setHasProfile(false);
+      const name = (profileRes?.sessionName || "").trim();
+      const parts = name.split(/\s+/).filter(Boolean);
+      setProfileForm({
+        ...emptyProfile(),
+        firstName: parts[0] || "",
+        lastName: parts.slice(1).join(" ") || "",
+        email: profileRes?.sessionEmail || "",
+      });
+    }
     setLoading(false);
   }, []);
 
-  React.useEffect(() => { load(); }, [load]);
+  React.useEffect(() => {
+    load();
+  }, [load]);
+
+  const handleSaveProfile = async () => {
+    setProfileSaving(true);
+    setProfileError(null);
+    const result = await saveProfile(profileForm);
+    setProfileSaving(false);
+    if ("error" in result) {
+      setProfileError(result.error);
+      return;
+    }
+    setHasProfile(true);
+    setProfileForm(result.profile);
+  };
 
   const handleCreateWallet = async () => {
     setLoading(true);
+    setWalletError(null);
     const w = await getOrCreateWallet();
-    setWallet(w);
     setLoading(false);
+    if (!w) {
+      setWalletError("Could not reach agent");
+      return;
+    }
+    if ("error" in w) {
+      setWalletError(w.error);
+      if (w.code === "PROFILE_REQUIRED") setHasProfile(false);
+      return;
+    }
+    setWallet(w);
   };
 
   const handleCopy = async (text: string) => {
@@ -76,27 +143,28 @@ export default function PortfolioView() {
   const handleWithdraw = async () => {
     setWithdrawing(true);
     setWithdrawMsg(null);
-    // amount is in USDC — convert to micro-USDC
     const micro = String(Math.floor(Number(withdrawalAmount) * 1_000_000));
     const result = await requestWithdrawal(micro);
     setWithdrawing(false);
     if ("error" in result) {
       setWithdrawMsg(result.error);
     } else {
-      setWithdrawMsg("Withdrawal requested — pending admin approval.");
+      setWithdrawMsg("Withdrawal requested — processed automatically after a short delay.");
       setWithdrawalAmount("");
       load();
     }
   };
 
   const netUsdc = balance ? microToUsdc(balance.netUsdc) : "—";
-  const lockedUsdc = balance ? microToUsdc(balance.lockedUsdc) : "—";
   const estValue = balance ? microToUsdc(balance.estimatedValueUsdc) : "—";
   const sharePct = balance ? (balance.sharePct * 100).toFixed(2) : "—";
+  const needsProfileGate = fossapayRequired && !hasProfile && !wallet?.depositAddress;
+
+  const setField = (key: keyof AccountProfile) => (value: string) =>
+    setProfileForm((p) => ({ ...p, [key]: value }));
 
   return (
     <div className="flex flex-col gap-4">
-      {/* Balance cards */}
       <dl className="grid grid-cols-1 gap-3 sm:grid-cols-3 sm:gap-4">
         {[
           { label: "Your deposit", value: `$${netUsdc}`, hint: "confirmed USDC" },
@@ -114,7 +182,6 @@ export default function PortfolioView() {
       </dl>
 
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-        {/* Deposit section */}
         <Card className="border border-transparent bg-content1 dark:border-default-100">
           <CardBody className="gap-4 p-4">
             <div className="flex items-center gap-2.5">
@@ -129,7 +196,7 @@ export default function PortfolioView() {
             ) : wallet?.depositAddress ? (
               <div className="flex flex-col gap-3">
                 <p className="text-small text-default-500">
-                  Send <span className="font-medium text-foreground">USDC on Solana</span> to your deposit address below. Funds are credited automatically within ~1 minute.
+                  Send <span className="font-medium text-foreground">USDC on Solana</span> to your deposit address below. Funds are credited automatically.
                 </p>
                 <div className="flex items-center gap-2 rounded-medium border border-default-200 bg-content2 px-3 py-2.5">
                   <code className="min-w-0 flex-1 truncate font-mono text-tiny text-foreground">
@@ -146,15 +213,52 @@ export default function PortfolioView() {
                     </Button>
                   </Tooltip>
                 </div>
-                <Chip color="warning" radius="sm" size="sm" variant="flat">
-                  Solana mainnet · USDC only
-                </Chip>
+                <div className="flex flex-wrap gap-2">
+                  <Chip color="warning" radius="sm" size="sm" variant="flat">
+                    Solana mainnet · USDC only
+                  </Chip>
+                  {wallet.provider === "fossapay" && (
+                    <Chip color="primary" radius="sm" size="sm" variant="flat">
+                      FossaPay custody
+                    </Chip>
+                  )}
+                </div>
+              </div>
+            ) : needsProfileGate ? (
+              <div className="flex flex-col gap-3">
+                <p className="text-small text-default-500">
+                  Complete your profile once to open a FossaPay Solana deposit wallet.
+                </p>
+                <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+                  <Input label="First name" size="sm" value={profileForm.firstName} onValueChange={setField("firstName")} />
+                  <Input label="Last name" size="sm" value={profileForm.lastName} onValueChange={setField("lastName")} />
+                  <Input label="Email" size="sm" type="email" value={profileForm.email} onValueChange={setField("email")} />
+                  <Input label="Mobile" placeholder="+234…" size="sm" value={profileForm.mobileNumber} onValueChange={setField("mobileNumber")} />
+                  <Input label="Date of birth" placeholder="YYYY-MM-DD" size="sm" value={profileForm.dob} onValueChange={setField("dob")} />
+                  <Input label="Country" size="sm" value={profileForm.country} onValueChange={setField("country")} />
+                  <Input className="sm:col-span-2" label="Address" size="sm" value={profileForm.address} onValueChange={setField("address")} />
+                  <Input className="sm:col-span-2" label="City" size="sm" value={profileForm.city} onValueChange={setField("city")} />
+                </div>
+                {profileError && <p className="text-tiny text-danger">{profileError}</p>}
+                <Button
+                  className="self-start"
+                  color="primary"
+                  isLoading={profileSaving}
+                  radius="full"
+                  size="sm"
+                  onPress={handleSaveProfile}
+                >
+                  Save profile
+                </Button>
               </div>
             ) : (
               <div className="flex flex-col gap-3">
                 <p className="text-small text-default-500">
-                  Generate your personal deposit address to start funding the pool.
+                  {fossapayRequired
+                    ? "Create your FossaPay deposit address to start funding the pool."
+                    : "Generate your personal deposit address to start funding the pool."}
                 </p>
+                {walletError && <p className="text-tiny text-danger">{walletError}</p>}
                 <Button
                   className="self-start"
                   color="primary"
@@ -169,7 +273,6 @@ export default function PortfolioView() {
           </CardBody>
         </Card>
 
-        {/* Withdraw section */}
         <Card className="border border-transparent bg-content1 dark:border-default-100">
           <CardBody className="gap-4 p-4">
             <div className="flex items-center gap-2.5">
@@ -222,9 +325,7 @@ export default function PortfolioView() {
               >
                 Request withdrawal
               </Button>
-              {withdrawMsg && (
-                <p className="text-tiny text-default-500">{withdrawMsg}</p>
-              )}
+              {withdrawMsg && <p className="text-tiny text-default-500">{withdrawMsg}</p>}
               <p className="text-tiny text-default-400">
                 Withdrawals are processed automatically on-chain after a short delay.
               </p>
@@ -233,7 +334,6 @@ export default function PortfolioView() {
         </Card>
       </div>
 
-      {/* Transaction history */}
       <Card className="border border-transparent bg-content1 dark:border-default-100">
         <CardBody className="gap-3 p-4">
           <div className="flex items-center justify-between">
@@ -269,8 +369,8 @@ export default function PortfolioView() {
                         tx.type === "deposit"
                           ? "text-success"
                           : tx.status === "rejected"
-                          ? "text-danger"
-                          : "text-default-400"
+                            ? "text-danger"
+                            : "text-default-400"
                       }
                       icon={
                         tx.type === "deposit"
@@ -280,16 +380,25 @@ export default function PortfolioView() {
                       width={16}
                     />
                     <div className="min-w-0">
-                      <p className="text-small font-medium text-foreground capitalize">
-                        {tx.type === "deposit" ? "Deposit" : tx.type === "withdrawal_request" ? "Withdrawal request" : "Withdrawal"}
+                      <p className="text-small font-medium capitalize text-foreground">
+                        {tx.type === "deposit"
+                          ? "Deposit"
+                          : tx.type === "withdrawal_request"
+                            ? "Withdrawal request"
+                            : "Withdrawal"}
                       </p>
                       <p className="truncate text-tiny text-default-400">
-                        {new Date(tx.createdAt).toLocaleDateString("en-US", { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" })}
+                        {new Date(tx.createdAt).toLocaleDateString("en-US", {
+                          month: "short",
+                          day: "numeric",
+                          hour: "2-digit",
+                          minute: "2-digit",
+                        })}
                       </p>
                     </div>
                   </div>
                   <div className="flex shrink-0 items-center gap-2">
-                    <p className="font-display tabular-nums text-small font-semibold text-foreground">
+                    <p className="font-display text-small font-semibold tabular-nums text-foreground">
                       {tx.type === "deposit" ? "+" : "−"}${microToUsdc(tx.amountUsdc)}
                     </p>
                     <Chip
@@ -297,8 +406,8 @@ export default function PortfolioView() {
                         tx.status === "confirmed" || tx.status === "completed"
                           ? "success"
                           : tx.status === "rejected" || tx.status === "failed"
-                          ? "danger"
-                          : "warning"
+                            ? "danger"
+                            : "warning"
                       }
                       radius="sm"
                       size="sm"

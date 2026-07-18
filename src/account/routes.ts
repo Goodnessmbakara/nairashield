@@ -1,7 +1,7 @@
 import type { Env } from "../types";
 import { json } from "../http/json";
 import { requireSession } from "../auth/session";
-import { getOrCreateWallet, getWallet, setWithdrawalAddress } from "./wallet";
+import { getOrCreateWallet, getWallet, setWithdrawalAddress, WalletCreateError } from "./wallet";
 import {
 	getUserBalance,
 	listTransactions,
@@ -11,6 +11,8 @@ import {
 } from "./ledger";
 import { requestWithdrawal } from "./withdraw";
 import { loadPosition } from "../agent/store";
+import { getProfile, upsertProfile, validateProfileInput } from "./profile";
+import { fossapayConfigured } from "../integrations/fossapay";
 
 function isAdmin(env: Env, email: string): boolean {
 	const admins = (env.ADMIN_EMAILS || "")
@@ -39,17 +41,98 @@ export async function handleAccountRoutes(
 		const { session } = auth;
 		const userSub = session.user.sub;
 
+		// GET /account/profile
+		if (method === "GET" && path === "/account/profile") {
+			const profile = await getProfile(env, userSub);
+			return json({
+				profile: profile
+					? {
+							firstName: profile.firstName,
+							lastName: profile.lastName,
+							email: profile.email,
+							mobileNumber: profile.mobileNumber,
+							dob: profile.dob,
+							address: profile.address,
+							city: profile.city,
+							country: profile.country,
+						}
+					: null,
+				fossapayRequired: fossapayConfigured(env),
+				sessionEmail: session.user.email || "",
+				sessionName: session.user.name || "",
+			});
+		}
+
+		// POST /account/profile — KYC fields required before FossaPay wallet create
+		if (method === "POST" && path === "/account/profile") {
+			let body: Record<string, unknown> = {};
+			try {
+				body = (await request.json()) as Record<string, unknown>;
+			} catch {
+				return json({ error: "Invalid JSON" }, 400);
+			}
+			const validated = validateProfileInput({
+				firstName: String(body.firstName ?? ""),
+				lastName: String(body.lastName ?? ""),
+				email: String(body.email ?? session.user.email ?? ""),
+				mobileNumber: String(body.mobileNumber ?? ""),
+				dob: String(body.dob ?? ""),
+				address: String(body.address ?? ""),
+				city: String(body.city ?? ""),
+				country: String(body.country ?? ""),
+			});
+			if (typeof validated === "string") return json({ error: validated }, 400);
+			const profile = await upsertProfile(env, userSub, validated);
+			return json({
+				ok: true,
+				profile: {
+					firstName: profile.firstName,
+					lastName: profile.lastName,
+					email: profile.email,
+					mobileNumber: profile.mobileNumber,
+					dob: profile.dob,
+					address: profile.address,
+					city: profile.city,
+					country: profile.country,
+				},
+			});
+		}
+
 		// POST /account/wallet — create or return deposit address
 		if (method === "POST" && path === "/account/wallet") {
-			const wallet = await getOrCreateWallet(env, userSub);
-			return json({ depositAddress: wallet.depositAddress, withdrawalAddress: wallet.withdrawalAddress });
+			try {
+				const wallet = await getOrCreateWallet(env, userSub);
+				return json({
+					depositAddress: wallet.depositAddress,
+					withdrawalAddress: wallet.withdrawalAddress,
+					provider: wallet.provider,
+				});
+			} catch (e) {
+				if (e instanceof WalletCreateError) {
+					const status = e.code === "PROFILE_REQUIRED" ? 400 : 502;
+					return json({ error: e.message, code: e.code }, status);
+				}
+				throw e;
+			}
 		}
 
 		// GET /account/wallet
 		if (method === "GET" && path === "/account/wallet") {
 			const wallet = await getWallet(env, userSub);
-			if (!wallet) return json({ depositAddress: null, withdrawalAddress: null });
-			return json({ depositAddress: wallet.depositAddress, withdrawalAddress: wallet.withdrawalAddress });
+			if (!wallet) {
+				return json({
+					depositAddress: null,
+					withdrawalAddress: null,
+					provider: null,
+					fossapayRequired: fossapayConfigured(env),
+				});
+			}
+			return json({
+				depositAddress: wallet.depositAddress,
+				withdrawalAddress: wallet.withdrawalAddress,
+				provider: wallet.provider,
+				fossapayRequired: fossapayConfigured(env),
+			});
 		}
 
 		// PUT /account/wallet/withdrawal

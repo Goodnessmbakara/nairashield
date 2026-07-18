@@ -13,7 +13,7 @@ import {
 } from "@solana/spl-token";
 import type { Env } from "../types";
 import type { AgentConfig } from "../agent/config";
-import { getAllWallets, decryptPrivkey } from "./wallet";
+import { getLocalWallets, decryptPrivkey } from "./wallet";
 import { insertTransaction } from "./ledger";
 import { loadKeypair } from "../blockchain/wallet";
 
@@ -31,7 +31,8 @@ function uuidv4(): string {
 }
 
 export async function sweepDeposits(env: Env, config: AgentConfig): Promise<void> {
-	const wallets = await getAllWallets(env);
+	// FossaPay wallets are credited via webhook — only sweep local custodial keypairs.
+	const wallets = await getLocalWallets(env);
 	if (wallets.length === 0) return;
 
 	const connection = new Connection(config.rpcUrl, "confirmed");
@@ -133,7 +134,12 @@ async function sweepWallet(
 async function getEncryptedPrivkey(env: Env, userSub: string): Promise<string> {
 	const { getDb } = await import("../db/client");
 	const sql = getDb(env);
-	const rows = await sql`SELECT encrypted_privkey FROM user_wallets WHERE user_sub = ${userSub} LIMIT 1`;
-	if (!rows[0]) throw new Error(`No wallet found for ${userSub}`);
+	const rows = await sql`
+		SELECT encrypted_privkey FROM user_wallets
+		WHERE user_sub = ${userSub} AND provider = 'local' LIMIT 1
+	`;
+	if (!rows[0]?.encrypted_privkey) {
+		throw new Error(`No local encrypted privkey for ${userSub}`);
+	}
 	return rows[0].encrypted_privkey as string;
 }

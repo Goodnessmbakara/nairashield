@@ -26,6 +26,13 @@ export interface Env {
 	/** Comma-separated admin emails, e.g. "alice@example.com,bob@example.com" */
 	ADMIN_EMAILS?: string;
 
+	/** FossaPay — managed Solana USDC wallets (replaces local deposit keypairs when set) */
+	FOSSAPAY_API_KEY?: string;
+	/** HMAC secret for POST /webhooks/fossapay */
+	FOSSAPAY_WEBHOOK_SECRET?: string;
+	/** Override API base (default https://api-production.fossapay.com/api/v1) */
+	FOSSAPAY_API_URL?: string;
+
 	/** Shared secret for the external cron trigger (GET /agent/run?key=…). */
 	CRON_SECRET?: string;
 	/** Fine-grained GitHub token for the team-designated state repo. */

@@ -20,6 +20,7 @@ import {
 import { signSessionToken } from "../auth/crypto";
 import { json } from "./json";
 import { handleAccountRoutes } from "../account/routes";
+import { handleFossaPayWebhook } from "../account/webhooks";
 
 export async function handleFetch(request: Request, env: Env): Promise<Response> {
 	const url = new URL(request.url);
@@ -56,10 +57,12 @@ export async function handleFetch(request: Request, env: Env): Promise<Response>
 				status: "GET /agent/status (auth)",
 				history: "GET /agent/history (auth)",
 				wallet: "POST /account/wallet | GET /account/wallet | PUT /account/wallet/withdrawal",
+				profile: "GET /account/profile | POST /account/profile",
 				balance: "GET /account/balance",
 				transactions: "GET /account/transactions",
 				snapshots: "GET /account/snapshots",
 				withdraw: "POST /account/withdraw | GET /account/withdraw",
+				fossapayWebhook: "POST /webhooks/fossapay",
 				adminWithdrawals: "GET /admin/withdrawals (admin)",
 				adminFundBalance: "GET /admin/fund/balance (admin)",
 			},
@@ -262,6 +265,11 @@ export async function handleFetch(request: Request, env: Env): Promise<Response>
 		const limit = Math.min(Number(url.searchParams.get("limit") || 40), 50);
 		const ticks = await listTicks(env, limit);
 		return json({ ticks, count: ticks.length });
+	}
+
+	// ── FossaPay webhooks (no session — signature-verified) ───────────
+	if (method === "POST" && path === "/webhooks/fossapay") {
+		return handleFossaPayWebhook(request, env);
 	}
 
 	// ── Account + Admin ───────────────────────────────────────────────

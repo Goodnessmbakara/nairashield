@@ -25,3 +25,8 @@ FRONTEND_URL=http://127.0.0.1:4321
 # Kamino (mainnet — must match mainnet RPC + mainnet USDC)
 # KAMINO_MARKET_PUBKEY=7u3HeHxYDLhnCoErrtycNokbQYbWGzLs6JSDqGAv5PfF
 # USDC_MINT_PUBKEY=EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v
+
+# FossaPay (managed Solana USDC deposit wallets — dashboard.fossapay.com)
+# FOSSAPAY_API_KEY=fp_test_sk_...
+# FOSSAPAY_WEBHOOK_SECRET=
+# FOSSAPAY_API_URL=https://api-production.fossapay.com/api/v1

@@ -3,6 +3,26 @@ import { AGENT_URL, authHeaders, getToken, isAgentConfigured } from "./auth";
 export type AccountWallet = {
   depositAddress: string | null;
   withdrawalAddress: string | null;
+  provider?: "local" | "fossapay" | null;
+  fossapayRequired?: boolean;
+};
+
+export type AccountProfile = {
+  firstName: string;
+  lastName: string;
+  email: string;
+  mobileNumber: string;
+  dob: string;
+  address: string;
+  city: string;
+  country: string;
+};
+
+export type ProfileResponse = {
+  profile: AccountProfile | null;
+  fossapayRequired: boolean;
+  sessionEmail: string;
+  sessionName: string;
 };
 
 export type AccountBalance = {
@@ -39,8 +59,35 @@ async function apiFetch(path: string, init?: RequestInit) {
   return res.json();
 }
 
-export async function getOrCreateWallet(): Promise<AccountWallet | null> {
-  return apiFetch("/account/wallet", { method: "POST" });
+export async function getProfile(): Promise<ProfileResponse | null> {
+  return apiFetch("/account/profile");
+}
+
+export async function saveProfile(
+  input: AccountProfile,
+): Promise<{ ok: true; profile: AccountProfile } | { error: string }> {
+  if (!isAgentConfigured() || !getToken()) return { error: "Not authenticated" };
+  const res = await fetch(`${AGENT_URL}/account/profile`, {
+    method: "POST",
+    headers: { ...authHeaders(), "Content-Type": "application/json" },
+    credentials: "include",
+    body: JSON.stringify(input),
+  });
+  const data = await res.json();
+  if (!res.ok) return { error: data?.error || "Failed to save profile" };
+  return { ok: true, profile: data.profile };
+}
+
+export async function getOrCreateWallet(): Promise<AccountWallet | { error: string; code?: string } | null> {
+  if (!isAgentConfigured() || !getToken()) return null;
+  const res = await fetch(`${AGENT_URL}/account/wallet`, {
+    method: "POST",
+    headers: { ...authHeaders() },
+    credentials: "include",
+  });
+  const data = await res.json();
+  if (!res.ok) return { error: data?.error || "Failed to create wallet", code: data?.code };
+  return data as AccountWallet;
 }
 
 export async function getWallet(): Promise<AccountWallet | null> {

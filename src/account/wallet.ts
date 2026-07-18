@@ -1,6 +1,15 @@
 import { Keypair, PublicKey } from "@solana/web3.js";
 import { getDb } from "../db/client";
 import type { Env } from "../types";
+import {
+	createCryptoWallet,
+	createCustomer,
+	fossapayConfigured,
+	FossaPayError,
+} from "../integrations/fossapay";
+import { getProfile } from "./profile";
+
+export type WalletProvider = "local" | "fossapay";
 
 export type UserWallet = {
 	userSub: string;
@@ -8,7 +17,22 @@ export type UserWallet = {
 	withdrawalAddress: string | null;
 	lockedUsdc: bigint;
 	createdAt: number;
+	provider: WalletProvider;
+	fossapayCustomerId: string | null;
+	fossapayWalletId: string | null;
+	/** Present only for local provider wallets. */
+	hasLocalPrivkey: boolean;
 };
+
+export class WalletCreateError extends Error {
+	constructor(
+		message: string,
+		public code: "PROFILE_REQUIRED" | "FOSSAPAY_ERROR" | "CONFIG",
+	) {
+		super(message);
+		this.name = "WalletCreateError";
+	}
+}
 
 // ── Key encryption ──────────────────────────────────────────────────
 
@@ -63,17 +87,71 @@ export async function getOrCreateWallet(env: Env, userSub: string): Promise<User
 	`;
 	if (existing[0]) return rowToWallet(existing[0]);
 
+	if (fossapayConfigured(env)) {
+		return createFossaPayWallet(env, userSub);
+	}
+	return createLocalWallet(env, userSub);
+}
+
+async function createFossaPayWallet(env: Env, userSub: string): Promise<UserWallet> {
+	const profile = await getProfile(env, userSub);
+	if (!profile) {
+		throw new WalletCreateError(
+			"Complete your profile before creating a deposit wallet.",
+			"PROFILE_REQUIRED",
+		);
+	}
+
+	const sql = getDb(env);
+	try {
+		const customer = await createCustomer(env, {
+			firstName: profile.firstName,
+			lastName: profile.lastName,
+			emailAddress: profile.email,
+			mobileNumber: profile.mobileNumber,
+			dob: profile.dob,
+			address: profile.address,
+			city: profile.city,
+			country: profile.country,
+		});
+		const wallet = await createCryptoWallet(env, customer.id);
+
+		await sql`
+			INSERT INTO user_wallets (
+				user_sub, deposit_address, encrypted_privkey, locked_usdc, created_at,
+				fossapay_customer_id, fossapay_wallet_id, provider
+			) VALUES (
+				${userSub}, ${wallet.address}, NULL, 0, ${Date.now()},
+				${customer.id}, ${wallet.walletId}, 'fossapay'
+			)
+			ON CONFLICT (user_sub) DO NOTHING
+		`;
+	} catch (e) {
+		if (e instanceof WalletCreateError) throw e;
+		const msg = e instanceof FossaPayError ? e.message : e instanceof Error ? e.message : String(e);
+		throw new WalletCreateError(msg, "FOSSAPAY_ERROR");
+	}
+
+	const row = await sql`SELECT * FROM user_wallets WHERE user_sub = ${userSub} LIMIT 1`;
+	if (!row[0]) throw new WalletCreateError("Wallet create race failed", "FOSSAPAY_ERROR");
+	return rowToWallet(row[0]);
+}
+
+async function createLocalWallet(env: Env, userSub: string): Promise<UserWallet> {
+	const sql = getDb(env);
 	const keypair = Keypair.generate();
 	const encrypted = await encryptPrivkey(env, keypair.secretKey);
 	const depositAddress = keypair.publicKey.toBase58();
 
 	await sql`
-		INSERT INTO user_wallets (user_sub, deposit_address, encrypted_privkey, locked_usdc, created_at)
-		VALUES (${userSub}, ${depositAddress}, ${encrypted}, 0, ${Date.now()})
+		INSERT INTO user_wallets (
+			user_sub, deposit_address, encrypted_privkey, locked_usdc, created_at, provider
+		) VALUES (
+			${userSub}, ${depositAddress}, ${encrypted}, 0, ${Date.now()}, 'local'
+		)
 		ON CONFLICT (user_sub) DO NOTHING
 	`;
 
-	// Re-fetch in case of race (ON CONFLICT DO NOTHING means another insert won)
 	const row = await sql`SELECT * FROM user_wallets WHERE user_sub = ${userSub} LIMIT 1`;
 	return rowToWallet(row[0]);
 }
@@ -96,10 +174,34 @@ export async function setWithdrawalAddress(
 	`;
 }
 
+/** All wallets (any provider). Prefer getLocalWallets for sweep. */
 export async function getAllWallets(env: Env): Promise<UserWallet[]> {
 	const sql = getDb(env);
 	const rows = await sql`SELECT * FROM user_wallets`;
 	return rows.map(rowToWallet);
+}
+
+/** Local custodial wallets only — have encrypted privkeys for on-chain sweep. */
+export async function getLocalWallets(env: Env): Promise<UserWallet[]> {
+	const sql = getDb(env);
+	const rows = await sql`
+		SELECT * FROM user_wallets
+		WHERE provider = 'local' AND encrypted_privkey IS NOT NULL
+	`;
+	return rows.map(rowToWallet);
+}
+
+export async function getWalletByFossaPayCustomerId(
+	env: Env,
+	customerId: string,
+): Promise<UserWallet | null> {
+	const sql = getDb(env);
+	const rows = await sql`
+		SELECT * FROM user_wallets
+		WHERE fossapay_customer_id = ${customerId}
+		LIMIT 1
+	`;
+	return rows[0] ? rowToWallet(rows[0]) : null;
 }
 
 export async function adjustLockedUsdc(
@@ -116,11 +218,16 @@ export async function adjustLockedUsdc(
 }
 
 function rowToWallet(row: Record<string, unknown>): UserWallet {
+	const provider = (row.provider as string) === "fossapay" ? "fossapay" : "local";
 	return {
 		userSub: row.user_sub as string,
 		depositAddress: row.deposit_address as string,
 		withdrawalAddress: (row.withdrawal_address as string) ?? null,
 		lockedUsdc: BigInt(row.locked_usdc as string | number),
 		createdAt: Number(row.created_at),
+		provider,
+		fossapayCustomerId: (row.fossapay_customer_id as string) ?? null,
+		fossapayWalletId: (row.fossapay_wallet_id as string) ?? null,
+		hasLocalPrivkey: Boolean(row.encrypted_privkey),
 	};
 }
