@@ -417,6 +417,16 @@ function mapStatus(
 	statusRaw: string,
 	body: Record<string, unknown>,
 ): MarketOdds["status"] {
+	// TxLINE primary signal: InRunning (boolean) present on all StablePrice elements
+	if (body.InRunning === true || body.inRunning === true) return "IN_PLAY";
+	if (body.InRunning === false || body.inRunning === false) {
+		// GameState: null/undefined = pre-match, 5/10/13 = ended (soccer feed IDs)
+		const gs = Number(body.GameState ?? body.gameState ?? -1);
+		if ([5, 10, 13].includes(gs)) return "ENDED";
+		return "PRE_MATCH";
+	}
+
+	// Fallback: string status field (other feed formats)
 	if (["IN_PLAY", "INPLAY", "LIVE"].includes(statusRaw)) return "IN_PLAY";
 	if (["PRE_MATCH", "PREMATCH", "NS"].includes(statusRaw)) return "PRE_MATCH";
 	if (["ENDED", "FINISHED", "FT"].includes(statusRaw)) return "ENDED";
