@@ -3,6 +3,7 @@
 import React from "react";
 import { fetchAgentHistory, fetchTick, isConfigured, type Tick } from "../lib/agent";
 import { getToken } from "../lib/auth";
+import { dedupeTicksForFeed, isIdleHold } from "../lib/ticks";
 
 const POLL_MS = 60_000;
 
@@ -50,17 +51,27 @@ export function useAgent(options?: { enabled?: boolean }) {
       // Avoid recursive list growth when the agent keeps returning the same HOLD,
       // but always add the first tick so stat cards show something immediately.
       const reason = tick.decision?.reason ?? "";
+      const prevIdle =
+        lastReason.current !== null &&
+        isIdleHold({
+          id: "",
+          receivedAt: "",
+          status: "Skipped",
+          decision: { action: "HOLD", reason: lastReason.current },
+        });
       const sameAsLast =
-        lastReason.current === reason &&
         tick.decision?.action === "HOLD" &&
-        reason.length > 0;
+        reason.length > 0 &&
+        (lastReason.current === reason || (isIdleHold(tick) && prevIdle));
 
       lastReason.current = reason;
       setTicks((prev) => {
         if (prev[0]?.id === tick.id) return prev;
-        // First tick always shows; subsequent same-HOLD duplicates are dropped
-        if (sameAsLast && prev.length > 0) return prev;
-        return [tick, ...prev].slice(0, 40);
+        if (sameAsLast && prev.length > 0) {
+          // Refresh latest status in place — do not grow a fake check count
+          return [tick, ...prev.slice(1)].slice(0, 40);
+        }
+        return dedupeTicksForFeed([tick, ...prev]).slice(0, 40);
       });
     } catch (e) {
       if ((e as Error).name === "AbortError") return;
@@ -113,8 +124,8 @@ export function useAgent(options?: { enabled?: boolean }) {
           setTicks((prev) => {
             const seen = new Set(prev.map((t) => t.id));
             const merged = [...prev, ...history.filter((t) => !seen.has(t.id))];
-            merged.sort((a, b) => (a.id < b.id ? 1 : -1)); // tick ids are time-ordered
-            return merged.slice(0, 40);
+            merged.sort((a, b) => (a.id < b.id ? 1 : -1));
+            return dedupeTicksForFeed(merged).slice(0, 40);
           });
         })
         .catch(() => {});

@@ -5,17 +5,32 @@ const MAX_HISTORY = 50;
 
 // ── Tick history ────────────────────────────────────────────────────
 
+function isIdleHoldReason(reason: string): boolean {
+	const r = reason.toLowerCase();
+	return (
+		r.includes("no live odds") ||
+		r.includes("not in-play") ||
+		r.includes("not in play") ||
+		r.includes("capital stays in yield") ||
+		r.includes("keep capital in kamino") ||
+		r.includes("stays in yield") ||
+		r.includes("next fixture")
+	);
+}
+
 export async function appendTick(env: Env, tick: AgentTickResult): Promise<void> {
 	const last = await getLastTick(env);
 
+	// Do not persist a wall of identical idle HOLDs — one current status is enough.
 	const uneventful =
 		last &&
 		tick.decision.action === "HOLD" &&
 		last.decision.action === "HOLD" &&
-		tick.decision.reason === last.decision.reason &&
 		!tick.execution &&
 		!tick.movement?.length &&
-		tick.status !== "Error";
+		tick.status !== "Error" &&
+		(tick.decision.reason === last.decision.reason ||
+			(isIdleHoldReason(tick.decision.reason) && isIdleHoldReason(last.decision.reason)));
 	if (uneventful) return;
 
 	const sql = getDb(env);

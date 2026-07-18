@@ -23,6 +23,7 @@ import SidebarDrawer from "./dashboard/SidebarDrawer";
 import LogoutConfirmModal from "./dashboard/LogoutConfirmModal";
 import { dashboardNav, type DashboardView } from "./dashboard/sidebar-items";
 import { heldSeriesFromTicks, checksSeriesFromTicks, estimatedEarned } from "../lib/chart-from-ticks";
+import { dedupeTicksForFeed, isIdleHold } from "../lib/ticks";
 import { useAgent } from "../hooks/useAgent";
 import { useAuth } from "../hooks/useAuth";
 
@@ -85,18 +86,22 @@ export default function Dashboard() {
     }
   }, []);
 
-  const observed = ticks.length;
-  const trades = ticks.filter((t) => t.decision.action === "TRADE").length;
-  const holds = observed - trades;
+  // Dedupe idle HOLDs so KPIs don't look like fabricated check volume
+  const feedTicks = dedupeTicksForFeed(ticks);
+  const observed = feedTicks.length;
+  const trades = feedTicks.filter((t) => t.decision.action === "TRADE").length;
+  const holds = feedTicks.filter((t) => t.decision.action === "HOLD").length;
+  const idleOnly = feedTicks.length > 0 && feedTicks.every(isIdleHold);
   // Connection chip: auth + agent URL only — do not thrash on transient poll errors
   const connected = configured && isAuthenticated;
 
-  const heldSeries = heldSeriesFromTicks(ticks);
-  const checkSeries = checksSeriesFromTicks(ticks);
+  const heldSeries = heldSeriesFromTicks(feedTicks);
+  const checkSeries = checksSeriesFromTicks(feedTicks);
   const chartData = heldSeries.length >= 2 ? heldSeries : checkSeries;
-  const earned = estimatedEarned(ticks);
-  const latestBalance = ticks.find(t => typeof t.yield?.balanceUsdc === "number")?.yield?.balanceUsdc;
-  const latest = ticks[0];
+  const earned = estimatedEarned(feedTicks);
+  const latestBalance = feedTicks.find((t) => typeof t.yield?.balanceUsdc === "number")?.yield
+    ?.balanceUsdc;
+  const latest = feedTicks[0] ?? ticks[0];
   const latestOdds =
     latest && (latest.decision.team || typeof latest.decision.spread === "number")
       ? latest.decision
@@ -161,7 +166,7 @@ export default function Dashboard() {
   const kpis = (
     <dl className="grid w-full grid-cols-1 gap-3 sm:grid-cols-3 sm:gap-4">
       <StatCard
-        hint="this session"
+        hint={idleOnly ? "waiting on live play" : "state changes"}
         icon="solar:pulse-linear"
         title="Checks"
         value={observed > 0 ? String(observed) : "-"}
@@ -174,11 +179,21 @@ export default function Dashboard() {
         value={observed > 0 ? String(trades) : "-"}
       />
       <StatCard
-        hint={latestBalance ? `$${latestBalance.toFixed(2)} @ ${((ticks.find(t => typeof t.yield?.apy === "number")?.yield?.apy ?? 0.08) * 100).toFixed(2)}% APY` : "stayed earning"}
+        hint={
+          latestBalance
+            ? `$${latestBalance.toFixed(2)} @ ${((feedTicks.find((t) => typeof t.yield?.apy === "number")?.yield?.apy ?? 0.08) * 100).toFixed(2)}% APY`
+            : "stayed earning"
+        }
         icon="solar:safe-square-linear"
         share={observed > 0 ? holds / observed : undefined}
         title="Kept earning"
-        value={earned !== null ? `+$${earned < 0.001 ? earned.toFixed(6) : earned.toFixed(4)}` : observed > 0 ? String(holds) : "-"}
+        value={
+          earned !== null
+            ? `+$${earned < 0.001 ? earned.toFixed(6) : earned.toFixed(4)}`
+            : observed > 0
+              ? String(holds)
+              : "-"
+        }
       />
     </dl>
   );
