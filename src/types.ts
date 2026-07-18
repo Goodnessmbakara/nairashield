@@ -21,6 +21,10 @@ export interface Env {
 	WORKER_URL: string;
 	FRONTEND_URL: string;
 	SESSION_SECRET: string;
+	/** 32-byte hex key for AES-GCM encryption of custodial deposit keypairs */
+	ACCOUNT_MASTER_KEY: string;
+	/** Comma-separated admin emails, e.g. "alice@example.com,bob@example.com" */
+	ADMIN_EMAILS?: string;
 
 	/** Shared secret for the external cron trigger (GET /agent/run?key=…). */
 	CRON_SECRET?: string;
