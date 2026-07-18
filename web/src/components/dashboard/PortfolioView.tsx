@@ -255,8 +255,8 @@ export default function PortfolioView() {
               <div className="flex flex-col gap-3">
                 <p className="text-small text-default-500">
                   {fossapayRequired
-                    ? "Step 1 of your first agent run: create a FossaPay Solana deposit address, then send USDC."
-                    : "Step 1 of your first agent run: generate your deposit address, then send USDC."}
+                    ? "Create a FossaPay Solana deposit address, then send USDC."
+                    : "Generate your Solana USDC deposit address, then send funds."}
                 </p>
                 {walletError && <p className="text-tiny text-danger">{walletError}</p>}
                 <Button
