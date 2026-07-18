@@ -172,7 +172,7 @@ export async function fetchTick(signal?: AbortSignal): Promise<Tick> {
   };
 }
 
-/** Fetch agent status (mode, integrations, position). Auth required. */
+/** Fetch agent status (mode, integrations, position, currentStatus). Auth required. */
 export async function fetchAgentStatus(signal?: AbortSignal) {
   if (!isConfigured() || !getToken()) return null;
   const res = await fetch(`${AGENT_URL}/agent/status`, {
@@ -186,6 +186,7 @@ export async function fetchAgentStatus(signal?: AbortSignal) {
     integrations: Record<string, boolean>;
     position?: TickYield;
     config: { tradeSizeUsdc: number; yieldApy: number; minEdge: number };
+    currentStatus?: { action: string; reason: string; at: string };
   }>;
 }
 

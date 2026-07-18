@@ -266,6 +266,8 @@ export type AgentStatus = {
 	position?: YieldPosition;
 	openPositions: OpenPosition[];
 	lastTick?: AgentTickResult | null;
+	/** Most recent tick status — written to KV on every tick, including idle HOLDs not stored in DB. */
+	currentStatus?: { action: string; reason: string; at: string };
 	config: {
 		tradeSizeUsdc: number;
 		yieldApy: number;

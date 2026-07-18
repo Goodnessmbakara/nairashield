@@ -1,7 +1,7 @@
 "use client";
 
 import React from "react";
-import { fetchAgentHistory, fetchTick, isConfigured, type Tick } from "../lib/agent";
+import { fetchAgentHistory, fetchAgentStatus, fetchTick, isConfigured, type Tick } from "../lib/agent";
 import { getToken } from "../lib/auth";
 import { dedupeTicksForFeed, isIdleHold } from "../lib/ticks";
 
@@ -19,8 +19,10 @@ export function useAgent(options?: { enabled?: boolean }) {
   const [needsAuth, setNeedsAuth] = React.useState(false);
   const [lastSyncedAt, setLastSyncedAt] = React.useState<number | null>(null);
   const [liveFlashId, setLiveFlashId] = React.useState<string | null>(null);
+  const [liveReason, setLiveReason] = React.useState<{ action: string; reason: string; at: string } | null>(null);
   const inFlight = React.useRef(false);
   const historyInFlight = React.useRef(false);
+  const statusInFlight = React.useRef(false);
   const mounted = React.useRef(true);
   const lastReason = React.useRef<string | null>(null);
   const knownIds = React.useRef<Set<string>>(new Set());
@@ -74,6 +76,21 @@ export function useAgent(options?: { enabled?: boolean }) {
       historyInFlight.current = false;
     }
   }, [mergeHistory]);
+
+  const refreshStatus = React.useCallback(async (signal?: AbortSignal) => {
+    if (statusInFlight.current) return;
+    if (!isConfigured() || !getToken()) return;
+    statusInFlight.current = true;
+    try {
+      const status = await fetchAgentStatus(signal);
+      if (!mounted.current || signal?.aborted) return;
+      if (status?.currentStatus) setLiveReason(status.currentStatus);
+    } catch {
+      /* quiet */
+    } finally {
+      statusInFlight.current = false;
+    }
+  }, []);
 
   const poll = React.useCallback(async (signal?: AbortSignal) => {
     if (inFlight.current) return;
@@ -170,15 +187,20 @@ export function useAgent(options?: { enabled?: boolean }) {
       const ms = document.hidden ? HIDDEN_POLL_MS : LIVE_POLL_MS;
       timer = window.setInterval(() => {
         void refreshHistory(ctrl.signal);
+        void refreshStatus(ctrl.signal);
       }, ms);
     };
 
     void refreshHistory(ctrl.signal);
+    void refreshStatus(ctrl.signal);
     schedule();
 
     const onVis = () => {
       schedule();
-      if (!document.hidden) void refreshHistory(ctrl.signal);
+      if (!document.hidden) {
+        void refreshHistory(ctrl.signal);
+        void refreshStatus(ctrl.signal);
+      }
     };
     document.addEventListener("visibilitychange", onVis);
 
@@ -187,7 +209,7 @@ export function useAgent(options?: { enabled?: boolean }) {
       if (timer) window.clearInterval(timer);
       document.removeEventListener("visibilitychange", onVis);
     };
-  }, [enabled, refreshHistory]);
+  }, [enabled, refreshHistory, refreshStatus]);
 
   return {
     ticks,
@@ -195,8 +217,10 @@ export function useAgent(options?: { enabled?: boolean }) {
     loading,
     lastSyncedAt,
     liveFlashId,
+    liveReason,
     poll: () => {
       void poll();
+      void refreshStatus();
     },
     configured: isConfigured(),
     needsAuth,

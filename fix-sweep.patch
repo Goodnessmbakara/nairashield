@@ -1,0 +1,27 @@
+--- src/account/sweep.ts
++++ src/account/sweep.ts
+@@ -3,7 +3,6 @@
+ import {
+ 	Connection,
+ 	PublicKey,
+-	sendAndConfirmTransaction,
+ 	Transaction,
+ } from "@solana/web3.js";
+ import { getAssociatedTokenAddress, createTransferInstruction, TOKEN_PROGRAM_ID } from "@solana/spl-token";
+@@ -120,10 +119,13 @@
+ 			),
+ 		);
+ 
++		const { blockhash, lastValidBlockHeight } = await connection.getLatestBlockhash("confirmed");
++		sweepTx.recentBlockhash = blockhash;
++		sweepTx.feePayer = poolKeypair.publicKey;
++		sweepTx.sign(poolKeypair, depositKeypair);
++
+ 		const sweepSig = await Promise.race([
+-			sendAndConfirmTransaction(connection, sweepTx, [poolKeypair, depositKeypair], { commitment: "confirmed" }),
++			connection.sendRawTransaction(sweepTx.serialize()).then(async (txid) => {
++				await connection.confirmTransaction({ signature: txid, blockhash, lastValidBlockHeight }, "confirmed");
++				return txid;
++			}),
+ 			timeoutPromise,
+ 		]);

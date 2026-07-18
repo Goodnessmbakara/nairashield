@@ -330,6 +330,17 @@ async function finishTick(args: {
 		durationMs: Date.now() - args.started,
 	};
 	await appendTick(args.env, tick);
+	// Always persist the latest status to KV so the dashboard stays fresh
+	// even for idle HOLDs that are intentionally skipped from the DB.
+	try {
+		await args.env.AGENT_STATE.put(
+			"current_status",
+			JSON.stringify({ action: tick.decision.action, reason: tick.decision.reason, at: tick.at }),
+			{ expirationTtl: 600 },
+		);
+	} catch {
+		// Non-fatal — KV unavailable in some local dev modes
+	}
 	// Record pool snapshot for NAV history
 	try {
 		const poolUsdc = await getPoolTotalUsdc(args.env);
@@ -449,6 +460,14 @@ export async function getAgentStatus(env: Env): Promise<AgentStatus> {
 	const openPositions = await listOpenPositions(env);
 	const ready = isAgentReady(env, config);
 
+	let currentStatus: { action: string; reason: string; at: string } | undefined;
+	try {
+		const raw = await env.AGENT_STATE.get("current_status");
+		if (raw) currentStatus = JSON.parse(raw) as { action: string; reason: string; at: string };
+	} catch {
+		// Non-fatal
+	}
+
 	return {
 		ok: ready,
 		mode: ready ? "live" : "not_ready",
@@ -456,6 +475,7 @@ export async function getAgentStatus(env: Env): Promise<AgentStatus> {
 		position: position?.source === "live" ? position : undefined,
 		openPositions,
 		lastTick,
+		currentStatus,
 		config: {
 			tradeSizeUsdc: config.tradeSizeUsdc,
 			yieldApy: config.yieldApy,

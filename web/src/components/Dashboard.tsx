@@ -50,7 +50,7 @@ function isDashboardView(v: string): v is DashboardView {
 
 export default function Dashboard() {
   const { user, loading: authLoading, isAuthenticated, logout } = useAuth();
-  const { ticks, error, loading, poll, configured, needsAuth, lastSyncedAt, liveFlashId } =
+  const { ticks, error, loading, poll, configured, needsAuth, lastSyncedAt, liveFlashId, liveReason } =
     useAgent({
       enabled: isAuthenticated,
     });
