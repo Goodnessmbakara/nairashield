@@ -1,7 +1,11 @@
 import type { SidebarItem } from "./SidebarNav";
 
-/** App views — switch the main panel (not page scroll). */
-export type DashboardView = "overview" | "activity" | "decisions" | "odds";
+/**
+ * App views — switch the main panel (not page scroll).
+ * Two honest destinations only: everything at a glance, and the full
+ * decision log. No duplicate views.
+ */
+export type DashboardView = "overview" | "decisions";
 
 export const dashboardNav: SidebarItem[] = [
   {
@@ -10,18 +14,8 @@ export const dashboardNav: SidebarItem[] = [
     icon: "solar:widget-2-outline",
   },
   {
-    key: "activity",
-    title: "Activity",
-    icon: "solar:chart-outline",
-  },
-  {
     key: "decisions",
     title: "Decisions",
     icon: "solar:checklist-minimalistic-outline",
-  },
-  {
-    key: "odds",
-    title: "Market odds",
-    icon: "solar:graph-up-outline",
   },
 ];

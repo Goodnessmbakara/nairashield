@@ -30,9 +30,7 @@ const VIEW_KEY = "ns_dashboard_view";
 
 const VIEW_TITLES: Record<DashboardView, string> = {
   overview: "Overview",
-  activity: "Activity",
   decisions: "Decisions",
-  odds: "Market odds",
 };
 
 function isDashboardView(v: string): v is DashboardView {
@@ -183,7 +181,7 @@ export default function Dashboard() {
           ? "Loading live activity…"
           : "No live graph yet. Run checks when the agent is connected."
       }
-      height={view === "activity" ? 360 : 280}
+      height={300}
       title="Kept earning over time"
       value={chartData.length >= 2 ? String(holds) : "-"}
     />
@@ -397,21 +395,6 @@ export default function Dashboard() {
                 </div>
               )}
 
-              {view === "activity" && (
-                <div className="flex flex-col gap-5">
-                  <div className="max-w-2xl">
-                    <h1 className="font-display text-xl font-bold tracking-tight text-foreground sm:text-2xl">
-                      Activity
-                    </h1>
-                    <p className="mt-1 text-small leading-6 text-default-500">
-                      How often the agent checked and held capital this session.
-                    </p>
-                  </div>
-                  {kpis}
-                  {activityPanel}
-                </div>
-              )}
-
               {view === "decisions" && (
                 <div className="flex flex-col gap-5">
                   <div className="max-w-2xl">
@@ -423,20 +406,6 @@ export default function Dashboard() {
                     </p>
                   </div>
                   {decisionsPanel}
-                </div>
-              )}
-
-              {view === "odds" && (
-                <div className="flex max-w-lg flex-col gap-5">
-                  <div>
-                    <h1 className="font-display text-xl font-bold tracking-tight text-foreground sm:text-2xl">
-                      Market odds
-                    </h1>
-                    <p className="mt-1 text-small leading-6 text-default-500">
-                      Last market the agent quoted when taking an opportunity.
-                    </p>
-                  </div>
-                  {oddsPanel}
                 </div>
               )}
             </div>
