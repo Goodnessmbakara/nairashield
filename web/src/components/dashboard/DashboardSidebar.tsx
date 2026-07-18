@@ -28,7 +28,6 @@ export type DashboardSidebarProps = {
   onToggleCompact: () => void;
   onNavigate?: () => void;
   onLogout: () => void;
-  connected: boolean;
   className?: string;
   hideCollapse?: boolean;
 };
@@ -44,7 +43,6 @@ const DashboardSidebar = React.memo(
       onToggleCompact,
       onNavigate,
       onLogout,
-      connected,
       className,
       hideCollapse,
     },
@@ -148,18 +146,6 @@ const DashboardSidebar = React.memo(
               </>
             )}
           </div>
-
-          {!isCompact && (
-            <Chip
-              classNames={{ content: "font-medium text-[0.65rem]" }}
-              color={connected ? "success" : "warning"}
-              radius="sm"
-              size="sm"
-              variant="flat"
-            >
-              {connected ? "Agent live" : "Agent limited"}
-            </Chip>
-          )}
 
           {isCompact ? (
             <Tooltip content="Sign out" placement="right">

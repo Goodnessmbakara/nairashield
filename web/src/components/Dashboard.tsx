@@ -147,7 +147,6 @@ export default function Dashboard() {
   const sidebarProps = {
     activeView: view,
     onViewChange: changeView,
-    connected: Boolean(connected),
     user,
     onLogout: openLogout,
     onToggleCompact: toggleCompact,
@@ -415,14 +414,13 @@ export default function Dashboard() {
                 size="sm"
                 variant="flat"
               >
-                {connected ? "Live" : "Limited"}
+                {connected ? "Connected" : "Not connected"}
               </Chip>
-              {connected && lastSyncedAt && (
+              {connected && lastSyncedAt != null && (
                 <span className="hidden text-tiny tabular-nums text-default-400 sm:inline">
-                  agent sync{" "}
                   {Math.max(0, Math.round((Date.now() - lastSyncedAt) / 1000)) < 5
-                    ? "now"
-                    : `${Math.max(0, Math.round((Date.now() - lastSyncedAt) / 1000))}s ago`}
+                    ? "synced"
+                    : `synced ${Math.max(0, Math.round((Date.now() - lastSyncedAt) / 1000))}s ago`}
                 </span>
               )}
             </div>

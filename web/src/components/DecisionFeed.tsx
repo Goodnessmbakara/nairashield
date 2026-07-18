@@ -143,9 +143,9 @@ const DecisionCard = React.forwardRef<
 DecisionCard.displayName = "DecisionCard";
 
 function syncLabel(lastSyncedAt: number | null): string {
-  if (!lastSyncedAt) return "connecting…";
+  if (!lastSyncedAt) return "waiting…";
   const sec = Math.max(0, Math.round((Date.now() - lastSyncedAt) / 1000));
-  if (sec < 3) return "live";
+  if (sec < 3) return "synced";
   if (sec < 60) return `${sec}s ago`;
   return `${Math.round(sec / 60)}m ago`;
 }
