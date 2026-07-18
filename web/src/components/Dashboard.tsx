@@ -12,6 +12,7 @@ import {
 } from "@heroui/react";
 import { Icon } from "@iconify/react";
 import DecisionFeed from "./DecisionFeed";
+import PortfolioView from "./dashboard/PortfolioView";
 import WatchingPanel from "./dashboard/WatchingPanel";
 import StatCard from "./ui/StatCard";
 import GateCard from "./ui/GateCard";
@@ -31,6 +32,7 @@ const VIEW_KEY = "ns_dashboard_view";
 const VIEW_TITLES: Record<DashboardView, string> = {
   overview: "Overview",
   decisions: "Decisions",
+  portfolio: "Portfolio",
 };
 
 function isDashboardView(v: string): v is DashboardView {
@@ -390,6 +392,12 @@ export default function Dashboard() {
               {view === "decisions" && (
                 <div className="flex flex-col gap-4">
                   {decisionsPanel}
+                </div>
+              )}
+
+              {view === "portfolio" && (
+                <div className="flex flex-col gap-4">
+                  <PortfolioView />
                 </div>
               )}
             </div>
