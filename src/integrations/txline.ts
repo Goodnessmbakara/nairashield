@@ -160,7 +160,22 @@ export class NoLiveOddsError extends Error {
 	}
 }
 
-type FixtureRef = { fixtureId: string; p1: string; p2: string; start: number };
+export type FixtureRef = { fixtureId: string; p1: string; p2: string; start: number };
+
+/**
+ * Public: the real fixtures the agent is watching (auth'd TxLINE feed).
+ * Returns [] when TxLINE is not configured or the feed is unreachable.
+ */
+export async function fetchUpcomingFixtures(config: AgentConfig): Promise<FixtureRef[]> {
+	if (!config.txlineApiUrl || !config.txlineApiKey) return [];
+	try {
+		const origin = getOrigin(config);
+		const jwt = await getGuestJwt(origin);
+		return await listFixtures(origin, buildHeaders(jwt, config.txlineApiKey));
+	} catch {
+		return [];
+	}
+}
 
 /** Real fixtures feed, sorted in-play/nearest first. Empty on any failure. */
 async function listFixtures(

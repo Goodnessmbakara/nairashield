@@ -1,5 +1,7 @@
 import type { Env } from "../types";
 import { runAgentTick, getAgentStatus } from "../agent/pipeline";
+import { loadAgentConfig } from "../agent/config";
+import { fetchUpcomingFixtures } from "../integrations/txline";
 import { listTicks } from "../agent/store";
 import { beginGoogleOAuth, googleConfigured, handleGoogleCallback } from "../auth/google";
 import { preflight, withCors } from "../auth/cors";
@@ -138,6 +140,24 @@ export async function handleFetch(request: Request, env: Env): Promise<Response>
 		if (auth instanceof Response) return auth;
 		const status = await getAgentStatus(env);
 		return json(status);
+	}
+
+	// ── Agent: fixtures the agent is watching (real TxLINE feed) ──────
+	if (method === "GET" && path === "/agent/fixtures") {
+		const auth = await requireSession(request, env);
+		if (auth instanceof Response) return auth;
+		const config = loadAgentConfig(env);
+		const fixtures = await fetchUpcomingFixtures(config);
+		const now = Date.now();
+		return json({
+			fixtures: fixtures.map((f) => ({
+				...f,
+				// live = kicked off within the last 3h
+				live: f.start <= now && now - f.start < 3 * 3600 * 1000,
+				// bettable = mapped to a Jupiter market the agent can execute on
+				bettable: Boolean(config.jupiterMarketMap[f.fixtureId]),
+			})),
+		});
 	}
 
 	// ── Agent: history ────────────────────────────────────────────────

@@ -12,6 +12,7 @@ import {
 } from "@heroui/react";
 import { Icon } from "@iconify/react";
 import DecisionFeed from "./DecisionFeed";
+import WatchingPanel from "./dashboard/WatchingPanel";
 import StatCard from "./ui/StatCard";
 import GateCard from "./ui/GateCard";
 import LazyActivityChart from "./ui/LazyActivityChart";
@@ -391,7 +392,7 @@ export default function Dashboard() {
                   {kpis}
                   <div className="grid grid-cols-1 gap-4 lg:grid-cols-5 lg:gap-5">
                     <div className="lg:col-span-3">{activityPanel}</div>
-                    <div className="lg:col-span-2">{oddsPanel}</div>
+                    <div className="flex flex-col gap-4 lg:col-span-2">{oddsPanel}<WatchingPanel /></div>
                   </div>
                 </div>
               )}
