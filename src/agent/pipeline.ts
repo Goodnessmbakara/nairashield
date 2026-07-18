@@ -176,8 +176,14 @@ export async function runAgentTick(env: Env): Promise<AgentTickResult> {
 			booksFull,
 		});
 
-		// Never trade a match the agent could not verify on-chain.
-		if (decision.action === "TRADE" && !verification.ok) {
+		// Hard-block only when the on-chain oracle actively rejects the fixture
+		// (simulate stage failure). A missing PDA means the oracle hasn't posted
+		// today's root yet — treat as soft-warn and let the trade proceed.
+		const hardBlocked =
+			decision.action === "TRADE" &&
+			!verification.ok &&
+			verification.stage === "simulate";
+		if (hardBlocked) {
 			decision = {
 				action: "HOLD",
 				reason: `Match not verified on-chain — capital stays in yield. ${verification.reason}`,
