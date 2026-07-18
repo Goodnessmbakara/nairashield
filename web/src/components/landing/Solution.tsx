@@ -5,9 +5,12 @@
 import React from "react";
 import { Button, Link } from "@heroui/react";
 import { solution } from "../../data/landing";
+import { useAuthCta } from "../../hooks/useAuthCta";
 import FadeIn from "../ui/FadeIn";
 
 export default function Solution() {
+  const cta = useAuthCta("Get started");
+
   return (
     <section className="section-pad mx-auto w-full max-w-6xl pt-4 sm:pt-6" id="solution">
       <FadeIn className="border border-default-200 bg-content1 px-6 py-10 sm:px-10 sm:py-12">
@@ -21,10 +24,10 @@ export default function Solution() {
           <Button
             as={Link}
             className="t-btn-press t-btn-primary bg-default-foreground font-medium text-background"
-            href="/login"
+            href={cta.href}
             radius="full"
           >
-            Get started
+            {cta.label}
           </Button>
         </div>
       </FadeIn>

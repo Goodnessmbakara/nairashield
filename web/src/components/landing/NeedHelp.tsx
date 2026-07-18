@@ -3,11 +3,13 @@
 import React from "react";
 import { Button, Link } from "@heroui/react";
 import { motion, useReducedMotion } from "framer-motion";
+import { useAuthCta } from "../../hooks/useAuthCta";
 import { ENTER_Y, SPRING } from "../../lib/motion";
 
 /** Support strip - panel-style entrance (transitions + framer). */
 export default function NeedHelp() {
   const reduce = useReducedMotion();
+  const cta = useAuthCta("Get support");
 
   return (
     <section className="section-pad mx-auto w-full max-w-6xl pb-20 pt-4 sm:pb-24" id="help">
@@ -27,17 +29,19 @@ export default function NeedHelp() {
             Need help?
           </h2>
           <p className="mt-2 text-small leading-6 text-default-500">
-            Questions about funding, markets, or how the agent decides. Sign in and we will pick it
-            up from there.
+            Questions about funding, markets, or how the agent decides.
+            {cta.isAuthenticated
+              ? " Open the dashboard and we will pick it up from there."
+              : " Sign in and we will pick it up from there."}
           </p>
         </div>
         <Button
           as={Link}
           className="t-btn-press t-btn-primary shrink-0 bg-default-foreground font-medium text-background"
-          href="/login"
+          href={cta.href}
           radius="full"
         >
-          Get support
+          {cta.isAuthenticated ? "Explore" : cta.label}
         </Button>
       </motion.div>
     </section>

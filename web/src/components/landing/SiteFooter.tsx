@@ -8,18 +8,8 @@
 
 import React from "react";
 import { Link } from "@heroui/react";
+import { useAuthCta } from "../../hooks/useAuthCta";
 import BrandMark from "../ui/BrandMark";
-
-const product = [
-  { name: "How it works", href: "#how" },
-  { name: "Get started", href: "/login" },
-];
-
-const support = [
-  { name: "FAQ", href: "#faq" },
-  { name: "Need help", href: "#help" },
-  { name: "Sign in", href: "/login" },
-];
 
 function FooterList({
   title,
@@ -49,6 +39,17 @@ function FooterList({
 }
 
 export default function SiteFooter() {
+  const cta = useAuthCta("Get started");
+  const product = [
+    { name: "How it works", href: "#how" },
+    { name: cta.label, href: cta.href },
+  ];
+  const support = [
+    { name: "FAQ", href: "#faq" },
+    { name: "Need help", href: "#help" },
+    { name: cta.isAuthenticated ? "Explore" : "Sign in", href: cta.href },
+  ];
+
   return (
     <footer className="flex w-full flex-col border-t border-default-200 bg-content1">
       <div className="mx-auto w-full max-w-6xl px-6 pb-8 pt-14 sm:pt-16 lg:px-8">

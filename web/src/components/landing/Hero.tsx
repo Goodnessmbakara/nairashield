@@ -6,10 +6,12 @@ import React from "react";
 import { Button, Link } from "@heroui/react";
 import { motion, useReducedMotion } from "framer-motion";
 import { problem } from "../../data/landing";
+import { useAuthCta } from "../../hooks/useAuthCta";
 import { ENTER_Y, SPRING, TIMING } from "../../lib/motion";
 
 export default function Hero() {
   const reduce = useReducedMotion();
+  const cta = useAuthCta("Get started");
   const enter = (delay: number) => (reduce ? { duration: 0 } : { ...SPRING.soft, delay });
 
   return (
@@ -45,10 +47,10 @@ export default function Hero() {
           <Button
             as={Link}
             className="t-btn-press t-btn-primary h-11 bg-default-foreground px-8 text-small font-medium text-background"
-            href="/login"
+            href={cta.href}
             radius="full"
           >
-            Get started
+            {cta.label}
           </Button>
           <Button
             as={Link}

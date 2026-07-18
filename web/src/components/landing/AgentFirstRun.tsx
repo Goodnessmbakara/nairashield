@@ -10,6 +10,7 @@ import { Button, Chip, Link } from "@heroui/react";
 import { Icon } from "@iconify/react";
 import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
 import { steps, type Step } from "../../data/landing";
+import { useAuthCta } from "../../hooks/useAuthCta";
 import { ENTER_Y, SPRING, TIMING } from "../../lib/motion";
 import FadeIn from "../ui/FadeIn";
 
@@ -104,6 +105,7 @@ function StagePanel({ step }: { step: Step }) {
 
 export default function AgentFirstRun() {
   const reduce = useReducedMotion();
+  const cta = useAuthCta("Get started");
   const [active, setActive] = React.useState(0);
   const step = steps[active] ?? steps[0];
 
@@ -206,11 +208,11 @@ export default function AgentFirstRun() {
               <Button
                 as={Link}
                 className="t-btn-press t-btn-primary bg-default-foreground text-background"
-                href="/login"
+                href={cta.href}
                 radius="full"
                 size="sm"
               >
-                Get started
+                {cta.label}
               </Button>
             )}
             <p className="text-tiny text-default-400">

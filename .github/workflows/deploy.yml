@@ -5,49 +5,91 @@ on:
     branches: [main]
   workflow_dispatch:
 
+concurrency:
+  group: deploy-main
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+env:
+  WORKER_URL: ${{ vars.WORKER_URL || 'https://retegol-bot.zanbuilds.workers.dev' }}
+  PAGES_PROJECT: ${{ vars.PAGES_PROJECT || 'retegol' }}
+
 jobs:
   worker:
     name: Deploy worker
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+
       - uses: pnpm/action-setup@v4
         with:
           version: 10
+
       - uses: actions/setup-node@v4
         with:
           node-version: 22
           cache: pnpm
+
       - run: pnpm install --frozen-lockfile
+
+      - name: Typecheck
+        run: pnpm run typecheck
+
       - uses: cloudflare/wrangler-action@v3
         with:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           command: deploy
 
+      - name: Smoke check
+        run: |
+          set -euo pipefail
+          for i in 1 2 3 4 5; do
+            code=$(curl -sS -o /tmp/health.json -w '%{http_code}' "$WORKER_URL/health" || true)
+            if [ "$code" = "200" ]; then
+              cat /tmp/health.json
+              echo
+              exit 0
+            fi
+            echo "health attempt $i → HTTP $code; retrying…"
+            sleep 3
+          done
+          echo "Worker health check failed"
+          cat /tmp/health.json 2>/dev/null || true
+          exit 1
+
   pages:
     name: Deploy dashboard
+    needs: worker
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+
       - uses: pnpm/action-setup@v4
         with:
           version: 10
+
       - uses: actions/setup-node@v4
         with:
           node-version: 22
           cache: pnpm
           cache-dependency-path: web/pnpm-lock.yaml
+
       - run: pnpm install --frozen-lockfile
         working-directory: web
-      - run: pnpm run build
+
+      - name: Build
         working-directory: web
         env:
-          # Astro inlines PUBLIC_* vars at build time; web/.env is gitignored
-          PUBLIC_AGENT_URL: https://retegol-bot.zanbuilds.workers.dev
+          # Astro inlines PUBLIC_* at build time; web/.env is gitignored
+          PUBLIC_AGENT_URL: ${{ env.WORKER_URL }}
+        run: pnpm run build
+
       - uses: cloudflare/wrangler-action@v3
         with:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           workingDirectory: web
-          command: pages deploy dist --project-name=retegol
+          command: pages deploy dist --project-name=${{ env.PAGES_PROJECT }}

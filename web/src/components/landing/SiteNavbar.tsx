@@ -17,14 +17,16 @@ import {
   cn,
 } from "@heroui/react";
 import { nav } from "../../data/landing";
+import { useAuthCta } from "../../hooks/useAuthCta";
 import BrandMark from "../ui/BrandMark";
 
 /**
- * Rectangular floating bar: Retegol mark + links + Sign in.
+ * Rectangular floating bar: Retegol mark + links + Sign in / Explore.
  */
 const SiteNavbar = React.forwardRef<HTMLElement, NavbarProps>(
   ({ classNames = {}, ...props }, ref) => {
     const [isMenuOpen, setIsMenuOpen] = React.useState(false);
+    const cta = useAuthCta();
 
     return (
       <div className="header-float">
@@ -83,11 +85,11 @@ const SiteNavbar = React.forwardRef<HTMLElement, NavbarProps>(
               <Button
                 as={Link}
                 className="t-btn-press t-btn-primary bg-default-foreground font-medium text-background"
-                href="/login"
+                href={cta.href}
                 radius="full"
                 size="sm"
               >
-                Sign in
+                {cta.label}
               </Button>
             </NavbarItem>
           </NavbarContent>
@@ -108,10 +110,10 @@ const SiteNavbar = React.forwardRef<HTMLElement, NavbarProps>(
                 fullWidth
                 as={Link}
                 className="t-btn-press t-btn-primary bg-foreground text-background"
-                href="/login"
+                href={cta.href}
                 radius="full"
               >
-                Sign in
+                {cta.label}
               </Button>
             </NavbarMenuItem>
             {nav.map((item, index) => (

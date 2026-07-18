@@ -2,6 +2,7 @@
 
 import React from "react";
 import { HeroUIProvider } from "@heroui/react";
+import { useAuth } from "../../hooks/useAuth";
 import AuthCard from "./AuthCard";
 
 function mapError(code: string | null): string | null {
@@ -22,6 +23,7 @@ function mapError(code: string | null): string | null {
 }
 
 export default function LoginPage() {
+  const { isAuthenticated, loading } = useAuth();
   const [error, setError] = React.useState<string | null>(null);
   const [returnTo, setReturnTo] = React.useState<string | undefined>();
 
@@ -33,6 +35,12 @@ export default function LoginPage() {
       setReturnTo(`${window.location.origin}${next}`);
     }
   }, []);
+
+  React.useEffect(() => {
+    if (loading || !isAuthenticated) return;
+    const next = new URLSearchParams(window.location.search).get("next");
+    window.location.replace(next?.startsWith("/") ? next : "/dashboard");
+  }, [isAuthenticated, loading]);
 
   return (
     <HeroUIProvider>
