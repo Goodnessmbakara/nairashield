@@ -23,7 +23,11 @@ import DashboardSidebar from "./dashboard/DashboardSidebar";
 import SidebarDrawer from "./dashboard/SidebarDrawer";
 import LogoutConfirmModal from "./dashboard/LogoutConfirmModal";
 import { dashboardNav, type DashboardView } from "./dashboard/sidebar-items";
-import { heldSeriesFromTicks, checksSeriesFromTicks, estimatedEarned } from "../lib/chart-from-ticks";
+import {
+  heldSeriesFromTicks,
+  latestYield,
+  estimatedDailyYield,
+} from "../lib/chart-from-ticks";
 import { dedupeTicksForFeed, isIdleHold } from "../lib/ticks";
 import { useAgent } from "../hooks/useAgent";
 import { useAuth } from "../hooks/useAuth";
@@ -99,17 +103,13 @@ export default function Dashboard() {
   const feedTicks = dedupeTicksForFeed(ticks);
   const observed = feedTicks.length;
   const trades = feedTicks.filter((t) => t.decision.action === "TRADE").length;
-  const holds = feedTicks.filter((t) => t.decision.action === "HOLD").length;
   const idleOnly = feedTicks.length > 0 && feedTicks.every(isIdleHold);
   // Connection chip: auth + agent URL only — do not thrash on transient poll errors
   const connected = configured && isAuthenticated;
 
   const heldSeries = heldSeriesFromTicks(feedTicks);
-  const checkSeries = checksSeriesFromTicks(feedTicks);
-  const chartData = heldSeries.length >= 2 ? heldSeries : checkSeries;
-  const earned = estimatedEarned(feedTicks);
-  const latestBalance = feedTicks.find((t) => typeof t.yield?.balanceUsdc === "number")?.yield
-    ?.balanceUsdc;
+  const yieldSnap = latestYield(feedTicks);
+  const dailyYield = estimatedDailyYield(feedTicks);
   const latest = feedTicks[0] ?? ticks[0];
   const latestOdds =
     latest && (latest.decision.team || typeof latest.decision.spread === "number")
@@ -180,49 +180,56 @@ export default function Dashboard() {
         value={observed > 0 ? String(observed) : "-"}
       />
       <StatCard
-        hint="capital moved"
+        hint="Jupiter maker fills"
         icon="solar:arrow-right-up-linear"
-        share={observed > 0 ? trades / observed : undefined}
         title="Opportunities taken"
         value={observed > 0 ? String(trades) : "-"}
       />
       <StatCard
         hint={
-          latestBalance
-            ? `$${latestBalance.toFixed(2)} @ ${((feedTicks.find((t) => typeof t.yield?.apy === "number")?.yield?.apy ?? 0.08) * 100).toFixed(2)}% APY`
-            : "stayed earning"
+          yieldSnap
+            ? `${(yieldSnap.apy * 100).toFixed(2)}% APY${
+                dailyYield != null
+                  ? ` · ~$${dailyYield < 0.01 ? dailyYield.toFixed(4) : dailyYield.toFixed(2)}/day`
+                  : ""
+              }`
+            : "fund wallet to earn in Kamino"
         }
         icon="solar:safe-square-linear"
-        share={observed > 0 ? holds / observed : undefined}
-        title="Kept earning"
+        title="Kamino balance"
         value={
-          earned !== null
-            ? `+$${earned < 0.001 ? earned.toFixed(6) : earned.toFixed(4)}`
-            : observed > 0
-              ? String(holds)
-              : "-"
+          yieldSnap
+            ? `$${yieldSnap.balanceUsdc.toLocaleString(undefined, {
+                minimumFractionDigits: 2,
+                maximumFractionDigits: 2,
+              })}`
+            : "-"
         }
       />
     </dl>
   );
 
-  const usingUsdcChart = heldSeries.length >= 2;
   const activityPanel = (
     <LazyActivityChart
-      change={chartData.length >= 2 ? "this session" : undefined}
+      change={yieldSnap ? `${(yieldSnap.apy * 100).toFixed(2)}% APY` : undefined}
       changeType="positive"
-      data={chartData}
+      data={heldSeries}
       emptyLabel={
         loading
-          ? "Loading live activity…"
-          : "No live graph yet. Run checks when the agent is connected."
+          ? "Loading Kamino balance…"
+          : yieldSnap
+            ? "Need two balance snapshots to draw the chart. Run another check."
+            : "Kamino balance shows here once capital is in yield — not a check counter."
       }
       height={260}
-      title={usingUsdcChart ? "Kamino balance over time" : "Kept earning over time"}
+      title="Kamino balance"
       value={
-        usingUsdcChart && latestBalance !== undefined
-          ? `$${latestBalance.toFixed(2)}`
-          : chartData.length >= 2 ? String(holds) : "-"
+        yieldSnap
+          ? `$${yieldSnap.balanceUsdc.toLocaleString(undefined, {
+              minimumFractionDigits: 2,
+              maximumFractionDigits: 2,
+            })}`
+          : "-"
       }
     />
   );
