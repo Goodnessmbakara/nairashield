@@ -12,6 +12,7 @@ import {
 } from "@heroui/react";
 import { Icon } from "@iconify/react";
 import DecisionFeed from "./DecisionFeed";
+import WatchingPanel from "./dashboard/WatchingPanel";
 import StatCard from "./ui/StatCard";
 import GateCard from "./ui/GateCard";
 import LazyActivityChart from "./ui/LazyActivityChart";
@@ -29,9 +30,7 @@ const VIEW_KEY = "ns_dashboard_view";
 
 const VIEW_TITLES: Record<DashboardView, string> = {
   overview: "Overview",
-  activity: "Activity",
   decisions: "Decisions",
-  odds: "Market odds",
 };
 
 function isDashboardView(v: string): v is DashboardView {
@@ -182,7 +181,7 @@ export default function Dashboard() {
           ? "Loading live activity…"
           : "No live graph yet. Run checks when the agent is connected."
       }
-      height={view === "activity" ? 360 : 280}
+      height={260}
       title="Kept earning over time"
       value={chartData.length >= 2 ? String(holds) : "-"}
     />
@@ -190,7 +189,7 @@ export default function Dashboard() {
 
   const oddsPanel = (
     <Card className="border border-transparent bg-content1 dark:border-default-100">
-      <CardBody className="gap-4 p-5">
+      <CardBody className="gap-3 p-4">
         <div className="flex items-center gap-2.5">
           <div className="flex rounded-medium border border-default-100 bg-default-50 p-1.5">
             <Icon className="text-default-500" icon="solar:chart-2-linear" width={16} />
@@ -224,8 +223,8 @@ export default function Dashboard() {
             </div>
           </div>
         ) : (
-          <div className="flex flex-col items-center rounded-medium border border-dashed border-default-200 px-3 py-8 text-center">
-            <div className="mb-3 flex rounded-medium border border-default-100 bg-default-50 p-2">
+          <div className="flex flex-col items-center rounded-medium border border-dashed border-default-200 px-3 py-5 text-center">
+            <div className="mb-2 flex rounded-medium border border-default-100 bg-default-50 p-2">
               <Icon className="text-default-400" icon="solar:chart-2-linear" width={20} />
             </div>
             <p className="text-small text-default-500">No odds yet</p>
@@ -359,7 +358,7 @@ export default function Dashboard() {
           </header>
 
           <main className="min-h-0 flex-1 overflow-y-auto">
-            <div className="mx-auto w-full max-w-7xl px-4 py-6 sm:px-6 sm:py-8">
+            <div className="mx-auto w-full max-w-7xl px-4 py-4 sm:px-6 sm:py-5">
               {(error || statusBanner) && (
                 <div className="mb-5 flex max-w-2xl flex-col gap-3">
                   {error && (
@@ -379,63 +378,18 @@ export default function Dashboard() {
               )}
 
               {view === "overview" && (
-                <div className="flex flex-col gap-5">
-                  <div className="max-w-2xl">
-                    <h1 className="font-display text-xl font-bold tracking-tight text-foreground sm:text-2xl">
-                      Overview
-                    </h1>
-                    <p className="mt-1 text-small leading-6 text-default-500">
-                      Session KPIs, activity, and latest odds from the real agent.
-                    </p>
-                  </div>
+                <div className="flex flex-col gap-4">
                   {kpis}
                   <div className="grid grid-cols-1 gap-4 lg:grid-cols-5 lg:gap-5">
                     <div className="lg:col-span-3">{activityPanel}</div>
-                    <div className="lg:col-span-2">{oddsPanel}</div>
+                    <div className="flex flex-col gap-4 lg:col-span-2">{oddsPanel}<WatchingPanel /></div>
                   </div>
-                </div>
-              )}
-
-              {view === "activity" && (
-                <div className="flex flex-col gap-5">
-                  <div className="max-w-2xl">
-                    <h1 className="font-display text-xl font-bold tracking-tight text-foreground sm:text-2xl">
-                      Activity
-                    </h1>
-                    <p className="mt-1 text-small leading-6 text-default-500">
-                      How often the agent checked and held capital this session.
-                    </p>
-                  </div>
-                  {kpis}
-                  {activityPanel}
                 </div>
               )}
 
               {view === "decisions" && (
-                <div className="flex flex-col gap-5">
-                  <div className="max-w-2xl">
-                    <h1 className="font-display text-xl font-bold tracking-tight text-foreground sm:text-2xl">
-                      Decisions
-                    </h1>
-                    <p className="mt-1 text-small leading-6 text-default-500">
-                      Live feed of agent TRADE / HOLD outcomes for this session.
-                    </p>
-                  </div>
+                <div className="flex flex-col gap-4">
                   {decisionsPanel}
-                </div>
-              )}
-
-              {view === "odds" && (
-                <div className="flex max-w-lg flex-col gap-5">
-                  <div>
-                    <h1 className="font-display text-xl font-bold tracking-tight text-foreground sm:text-2xl">
-                      Market odds
-                    </h1>
-                    <p className="mt-1 text-small leading-6 text-default-500">
-                      Last market the agent quoted when taking an opportunity.
-                    </p>
-                  </div>
-                  {oddsPanel}
                 </div>
               )}
             </div>

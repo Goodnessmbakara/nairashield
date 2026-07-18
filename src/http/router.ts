@@ -1,5 +1,7 @@
 import type { Env } from "../types";
 import { runAgentTick, getAgentStatus } from "../agent/pipeline";
+import { loadAgentConfig } from "../agent/config";
+import { fetchUpcomingFixtures } from "../integrations/txline";
 import { listTicks } from "../agent/store";
 import { beginGoogleOAuth, googleConfigured, handleGoogleCallback } from "../auth/google";
 import { preflight, withCors } from "../auth/cors";
@@ -94,6 +96,21 @@ export async function handleFetch(request: Request, env: Env): Promise<Response>
 	}
 
 	// ── Agent: tick ───────────────────────────────────────────────────
+	// ── Agent: external cron trigger (secret-gated, no session) ───────
+	// Lets a reliable external scheduler run the autonomous tick when
+	// Cloudflare's free-tier cron is not firing. Not public: requires the
+	// shared CRON_SECRET. Never returns user data.
+	if ((method === "POST" || method === "GET") && path === "/agent/run") {
+		const key = url.searchParams.get("key") || request.headers.get("X-Cron-Key") || "";
+		if (!env.CRON_SECRET || key !== env.CRON_SECRET) {
+			return json({ error: "forbidden" }, 403);
+		}
+		const tick = await runAgentTick(env);
+		// Self-report the worker's own KV view (bypasses CLI consistency lag).
+		const historyCount = (await listTicks(env)).length;
+		return json({ status: tick.status, action: tick.decision.action, at: tick.at, historyCount });
+	}
+
 	if ((method === "POST" || method === "GET") && path === "/agent/tick") {
 		const auth = await requireSession(request, env);
 		if (auth instanceof Response) return auth;
@@ -123,6 +140,24 @@ export async function handleFetch(request: Request, env: Env): Promise<Response>
 		if (auth instanceof Response) return auth;
 		const status = await getAgentStatus(env);
 		return json(status);
+	}
+
+	// ── Agent: fixtures the agent is watching (real TxLINE feed) ──────
+	if (method === "GET" && path === "/agent/fixtures") {
+		const auth = await requireSession(request, env);
+		if (auth instanceof Response) return auth;
+		const config = loadAgentConfig(env);
+		const fixtures = await fetchUpcomingFixtures(config);
+		const now = Date.now();
+		return json({
+			fixtures: fixtures.map((f) => ({
+				...f,
+				// live = kicked off within the last 3h
+				live: f.start <= now && now - f.start < 3 * 3600 * 1000,
+				// bettable = mapped to a Jupiter market the agent can execute on
+				bettable: Boolean(config.jupiterMarketMap[f.fixtureId]),
+			})),
+		});
 	}
 
 	// ── Agent: history ────────────────────────────────────────────────

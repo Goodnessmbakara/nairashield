@@ -20,6 +20,9 @@ export interface Env {
 	FRONTEND_URL: string;
 	SESSION_SECRET: string;
 
+	/** Shared secret for the external cron trigger (GET /agent/run?key=…). */
+	CRON_SECRET?: string;
+
 	/** Integration credentials (optional until wired) */
 	TXLINE_API_URL?: string;
 	TXLINE_API_KEY?: string;
@@ -127,6 +130,22 @@ export type OpenPosition = {
 	pnlUsdc?: number;
 	settledAt?: string;
 	redepositTxid?: string;
+	/** Set when the position was closed early by risk management */
+	exitReason?: "take_profit" | "stop_loss";
+	/** Real close transaction signature (Jupiter position close) */
+	exitTxid?: string;
+};
+
+/** One early close performed by the TP/SL risk manager this tick. */
+export type RiskExit = {
+	positionId: string;
+	team: string;
+	reason: "take_profit" | "stop_loss";
+	/** Implied win-probability move since entry, in points (+ favors us) */
+	edgePoints: number;
+	success: boolean;
+	txid?: string;
+	error?: string;
 };
 
 export type TickExecution = {
@@ -139,6 +158,8 @@ export type TickExecution = {
 	abortReason?: string;
 	/** Positions settled this tick */
 	settlements?: SettlementResult[];
+	/** Early closes performed by the TP/SL risk manager this tick */
+	riskExits?: RiskExit[];
 };
 
 export type SettlementResult = {

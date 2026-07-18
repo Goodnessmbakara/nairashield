@@ -172,6 +172,32 @@ export async function fetchAgentStatus(signal?: AbortSignal) {
   }>;
 }
 
+export type WatchedFixture = {
+  fixtureId: string;
+  p1: string;
+  p2: string;
+  start: number;
+  live: boolean;
+  bettable: boolean;
+};
+
+/** Fixtures the agent is watching (real TxLINE feed). Auth required. */
+export async function fetchFixtures(signal?: AbortSignal): Promise<WatchedFixture[]> {
+  if (!isConfigured() || !getToken()) return [];
+  try {
+    const res = await fetch(`${AGENT_URL}/agent/fixtures`, {
+      signal,
+      headers: authHeaders(),
+      credentials: "include",
+    });
+    if (!res.ok) return [];
+    const body = (await res.json()) as { fixtures?: WatchedFixture[] };
+    return body.fixtures ?? [];
+  } catch {
+    return [];
+  }
+}
+
 /** Fetch recent tick history from KV. Auth required. */
 export async function fetchAgentHistory(limit = 40, signal?: AbortSignal) {
   if (!isConfigured() || !getToken()) return [];
