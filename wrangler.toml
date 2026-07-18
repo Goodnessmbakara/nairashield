@@ -6,6 +6,12 @@ compatibility_flags = ["nodejs_compat"]
 [ai]
 binding = "AI"
 
+# D1 — primary relational store (users, sessions)
+[[d1_databases]]
+binding = "DB"
+database_name = "nairashield-db"
+database_id = "6bec19f8-2988-4855-becb-51d4725674e0"
+
 # Sessions (Google OAuth)
 [[kv_namespaces]]
 binding = "SESSIONS"

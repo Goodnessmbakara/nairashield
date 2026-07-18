@@ -4,10 +4,13 @@ import { loadAgentConfig } from "../agent/config";
 import { fetchUpcomingFixtures } from "../integrations/txline";
 import { listTicks } from "../agent/store";
 import { beginGoogleOAuth, googleConfigured, handleGoogleCallback } from "../auth/google";
+import { registerUser, loginUser } from "../auth/emailauth";
 import { preflight, withCors } from "../auth/cors";
 import {
 	clearSessionCookieHeader,
 	consumeExchangeCode,
+	createExchangeCode,
+	createSession,
 	destroySession,
 	getSession,
 	requireSession,
@@ -90,6 +93,51 @@ export async function handleFetch(request: Request, env: Env): Promise<Response>
 		if (!session) return json({ user: null }, 200);
 		return json({ user: session.user, expiresAt: session.expiresAt });
 	}
+	// ── Auth: email/password register ────────────────────────────────
+	if (method === "POST" && path === "/auth/register") {
+		let body: { email?: string; password?: string; name?: string } = {};
+		try {
+			body = (await request.json()) as typeof body;
+		} catch {
+			return json({ error: "Invalid JSON body" }, 400);
+		}
+		if (!body.email || !body.password) {
+			return json({ error: "email and password are required" }, 400);
+		}
+		const result = await registerUser(env, body.email, body.password, body.name || "");
+		if ("error" in result) return json({ error: result.error }, 409);
+		const { session, token } = await createSession(env, result.user);
+		const exchange = await createExchangeCode(env, session.id);
+		return json(
+			{ token, exchange, user: session.user, expiresAt: session.expiresAt },
+			201,
+			{ "Set-Cookie": sessionCookieHeader(token) },
+		);
+	}
+
+	// ── Auth: email/password login ────────────────────────────────────
+	if (method === "POST" && path === "/auth/login") {
+		let body: { email?: string; password?: string } = {};
+		try {
+			body = (await request.json()) as typeof body;
+		} catch {
+			return json({ error: "Invalid JSON body" }, 400);
+		}
+		if (!body.email || !body.password) {
+			return json({ error: "email and password are required" }, 400);
+		}
+		const result = await loginUser(env, body.email, body.password);
+		if ("error" in result) return json({ error: result.error }, 401);
+		const { session, token } = await createSession(env, result.user);
+		const exchange = await createExchangeCode(env, session.id);
+		return json(
+			{ token, exchange, user: session.user, expiresAt: session.expiresAt },
+			200,
+			{ "Set-Cookie": sessionCookieHeader(token) },
+		);
+	}
+
+	// ── Auth: logout ──────────────────────────────────────────────────
 	if (method === "POST" && path === "/auth/logout") {
 		const sessionId = await sessionIdFromRequest(request, env);
 		if (sessionId) await destroySession(env, sessionId);

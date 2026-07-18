@@ -3,6 +3,8 @@ export interface Env {
 	/** Workers AI binding (Llama etc.) */
 	// eslint-disable-next-line @typescript-eslint/no-explicit-any
 	AI: any;
+	/** D1 — primary relational store (users, tick mirror) */
+	DB: D1Database;
 	/** Session + OAuth state store */
 	SESSIONS: KVNamespace;
 	/** Agent tick history + position snapshots + open books */

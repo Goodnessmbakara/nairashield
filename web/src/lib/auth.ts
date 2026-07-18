@@ -79,6 +79,43 @@ export async function exchangeCode(code: string): Promise<{ token: string; user:
   return { token: body.token, user: body.user };
 }
 
+export async function emailSignIn(
+  email: string,
+  password: string,
+): Promise<{ token: string; user: AuthUser }> {
+  if (!isAgentConfigured()) throw new Error("Agent URL is not configured.");
+  const res = await fetch(`${AGENT_URL}/auth/login`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", Accept: "application/json" },
+    body: JSON.stringify({ email, password }),
+    credentials: "include",
+  });
+  const body = (await res.json()) as { token?: string; user?: AuthUser; error?: string };
+  if (!res.ok || !body.token || !body.user) {
+    throw new Error(body.error || "Invalid email or password.");
+  }
+  return { token: body.token, user: body.user };
+}
+
+export async function emailRegister(
+  email: string,
+  password: string,
+  name: string,
+): Promise<{ token: string; user: AuthUser }> {
+  if (!isAgentConfigured()) throw new Error("Agent URL is not configured.");
+  const res = await fetch(`${AGENT_URL}/auth/register`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", Accept: "application/json" },
+    body: JSON.stringify({ email, password, name }),
+    credentials: "include",
+  });
+  const body = (await res.json()) as { token?: string; user?: AuthUser; error?: string };
+  if (!res.ok || !body.token || !body.user) {
+    throw new Error(body.error || "Could not create account.");
+  }
+  return { token: body.token, user: body.user };
+}
+
 export async function fetchMe(signal?: AbortSignal): Promise<AuthUser | null> {
   if (!isAgentConfigured()) return null;
   const token = getToken();

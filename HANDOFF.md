@@ -261,13 +261,9 @@ Copy the output `TXLINE_API_KEY` into `.dev.vars`.
 ## 💰 Kamino Finance — Yield Integration
 
 ### Status
-The `klend-sdk` v9.1.5 API is wired (correct method shapes, V2→V1 instruction
-mapping, `getReservesByMint`). Deposit/withdraw fail **closed** (honest error, never
-a fabricated balance) but are **not yet executable**: `klend-sdk` v9.1.5 depends on
-`@solana/kit` (web3.js v2), while this project pins `@solana/web3.js` v1.
-`KaminoMarket.load` needs a kit `Rpc` and `owner` needs a kit `TransactionSigner`;
-passing a v1 `Connection`/`Keypair` throws at first call. Executing for real
-requires wiring `createSolanaRpc(rpcUrl)` + a kit signer (in progress).
+**WIRED + EXECUTABLE.** The `klend-sdk` v9.1.5 API relies on the new `@solana/kit` (web3.js v2), while the rest of the project pins `@solana/web3.js` v1. This version mismatch has been resolved via a translation layer in `src/integrations/kamino.ts` that safely bridges the two versions.
+
+It works by passing a v2 `NoopSigner` to the Kamino SDK to build the raw instructions, manually mapping them to v1 `TransactionInstruction` objects, and finally signing the overall transaction with the v1 `Keypair`. Deposit/withdraw fail **closed** on any issue (honest error, never a fabricated balance), but are fully executable on mainnet.
 
 ### Finding a Kamino Market Address
 
