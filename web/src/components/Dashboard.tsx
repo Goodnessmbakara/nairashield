@@ -358,6 +358,7 @@ export default function Dashboard() {
       error={error}
       lastSyncedAt={lastSyncedAt}
       liveFlashId={liveFlashId}
+      liveReason={liveReason}
       loading={loading}
       ticks={ticks}
       onOpenProofs={() => changeView("proofs")}

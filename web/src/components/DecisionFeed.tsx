@@ -156,6 +156,7 @@ type FeedProps = {
   loading: boolean;
   lastSyncedAt?: number | null;
   liveFlashId?: string | null;
+  liveReason?: { action: string; reason: string; at: string } | null;
   onOpenProofs?: () => void;
   className?: string;
 };
@@ -168,6 +169,7 @@ const DecisionFeed = React.forwardRef<HTMLDivElement, FeedProps>(
       loading,
       lastSyncedAt = null,
       liveFlashId = null,
+      liveReason = null,
       onOpenProofs,
       className,
     },
@@ -275,7 +277,18 @@ const DecisionFeed = React.forwardRef<HTMLDivElement, FeedProps>(
           )}
 
           {current && (
-            <StatusPanel flash={liveFlashId === current.id} tick={current} />
+            <StatusPanel
+              flash={liveFlashId === current.id}
+              tick={
+                liveReason && liveReason.at > current.id
+                  ? {
+                      ...current,
+                      decision: { ...current.decision, action: liveReason.action, reason: liveReason.reason },
+                      receivedAt: new Date(liveReason.at).toLocaleTimeString(),
+                    }
+                  : current
+              }
+            />
           )}
 
           {history.length > 0 && (
