@@ -62,8 +62,8 @@ async function sweepWallet(
 	let tokenAccountInfo;
 	try {
 		tokenAccountInfo = await getAccount(connection, depositTokenAccount);
-	} catch {
-		return;
+	} catch (e) {
+		throw new Error(`Failed to fetch token account (RPC might be blocking Cloudflare): ${e instanceof Error ? e.message : e}`);
 	}
 
 	const balanceLamports = BigInt(tokenAccountInfo.amount.toString());
