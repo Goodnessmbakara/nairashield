@@ -13,6 +13,7 @@ import {
 import { Icon } from "@iconify/react";
 import DecisionFeed from "./DecisionFeed";
 import PortfolioView from "./dashboard/PortfolioView";
+import ProofsView from "./dashboard/ProofsView";
 import WatchingPanel from "./dashboard/WatchingPanel";
 import StatCard from "./ui/StatCard";
 import GateCard from "./ui/GateCard";
@@ -33,6 +34,7 @@ const VIEW_KEY = "ns_dashboard_view";
 const VIEW_TITLES: Record<DashboardView, string> = {
   overview: "Overview",
   decisions: "Decisions",
+  proofs: "Proofs",
   portfolio: "Portfolio",
 };
 
@@ -350,6 +352,7 @@ export default function Dashboard() {
       liveFlashId={liveFlashId}
       loading={loading}
       ticks={ticks}
+      onOpenProofs={() => changeView("proofs")}
     />
   );
 
@@ -475,6 +478,8 @@ export default function Dashboard() {
                   {decisionsPanel}
                 </div>
               )}
+
+              {view === "proofs" && <ProofsView ticks={ticks} />}
 
               {view === "portfolio" && (
                 <div className="flex flex-col gap-4">

@@ -156,11 +156,23 @@ type FeedProps = {
   loading: boolean;
   lastSyncedAt?: number | null;
   liveFlashId?: string | null;
+  onOpenProofs?: () => void;
   className?: string;
 };
 
 const DecisionFeed = React.forwardRef<HTMLDivElement, FeedProps>(
-  ({ ticks, error, loading, lastSyncedAt = null, liveFlashId = null, className }, ref) => {
+  (
+    {
+      ticks,
+      error,
+      loading,
+      lastSyncedAt = null,
+      liveFlashId = null,
+      onOpenProofs,
+      className,
+    },
+    ref,
+  ) => {
     const feed = React.useMemo(() => dedupeTicksForFeed(ticks), [ticks]);
     const current = feed[0];
     const history = feed.slice(1, 1 + MAX_HISTORY).filter((t) => !isIdleHold(t));
@@ -211,6 +223,24 @@ const DecisionFeed = React.forwardRef<HTMLDivElement, FeedProps>(
             </Chip>
           )}
         </div>
+
+        <p className="mt-2 max-w-xl text-tiny leading-5 text-default-500">
+          <span className="font-medium text-default-600">Keep earning</span> = HOLD, capital stays
+          in Kamino. <span className="font-medium text-default-600">Take opportunity</span> = TRADE
+          after on-chain match proof.
+          {onOpenProofs && (
+            <>
+              {" "}
+              <button
+                className="underline underline-offset-2"
+                type="button"
+                onClick={onOpenProofs}
+              >
+                What decisions mean →
+              </button>
+            </>
+          )}
+        </p>
 
         <div className="mt-5 flex flex-col gap-5">
           {error && (

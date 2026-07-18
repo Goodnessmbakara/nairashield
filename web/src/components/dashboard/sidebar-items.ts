@@ -2,10 +2,8 @@ import type { SidebarItem } from "./SidebarNav";
 
 /**
  * App views — switch the main panel (not page scroll).
- * Two honest destinations only: everything at a glance, and the full
- * decision log. No duplicate views.
  */
-export type DashboardView = "overview" | "decisions" | "portfolio";
+export type DashboardView = "overview" | "decisions" | "proofs" | "portfolio";
 
 export const dashboardNav: SidebarItem[] = [
   {
@@ -17,6 +15,11 @@ export const dashboardNav: SidebarItem[] = [
     key: "decisions",
     title: "Decisions",
     icon: "solar:checklist-minimalistic-outline",
+  },
+  {
+    key: "proofs",
+    title: "Proofs",
+    icon: "solar:shield-check-linear",
   },
   {
     key: "portfolio",
