@@ -47,20 +47,21 @@ export function useAgent(options?: { enabled?: boolean }) {
       setError(null);
       setNeedsAuth(false);
 
-      // Avoid recursive list growth when the agent keeps returning the same HOLD
+      // Avoid recursive list growth when the agent keeps returning the same HOLD,
+      // but always add the first tick so stat cards show something immediately.
       const reason = tick.decision?.reason ?? "";
       const sameAsLast =
         lastReason.current === reason &&
         tick.decision?.action === "HOLD" &&
         reason.length > 0;
 
-      if (!sameAsLast) {
-        lastReason.current = reason;
-        setTicks((prev) => {
-          if (prev[0]?.id === tick.id) return prev;
-          return [tick, ...prev].slice(0, 40);
-        });
-      }
+      lastReason.current = reason;
+      setTicks((prev) => {
+        if (prev[0]?.id === tick.id) return prev;
+        // First tick always shows; subsequent same-HOLD duplicates are dropped
+        if (sameAsLast && prev.length > 0) return prev;
+        return [tick, ...prev].slice(0, 40);
+      });
     } catch (e) {
       if ((e as Error).name === "AbortError") return;
       if (!mounted.current) return;

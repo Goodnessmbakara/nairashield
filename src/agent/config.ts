@@ -47,10 +47,6 @@ export type AgentConfig = {
 	solanaPrivateKey: string;
 	/** Jupiter Predict REST base (execution venue). */
 	jupiterApiUrl: string;
-	/** Jupiter portal API key (free registration, not identity KYC). */
-	jupiterApiKey: string;
-	/** Curated TxLINE fixture -> Jupiter market map (no shared id exists). */
-	jupiterMarketMap: Record<string, JupiterMarketRef>;
 };
 
 export type JupiterOutcomeRef = {
@@ -59,21 +55,6 @@ export type JupiterOutcomeRef = {
 	/** Which binary side represents this team winning. */
 	side: "YES" | "NO";
 };
-
-export type JupiterMarketRef = {
-	/** TxLINE team label -> Jupiter market + side. */
-	outcomes: Record<string, JupiterOutcomeRef>;
-};
-
-function parseJupiterMarketMap(raw?: string): Record<string, JupiterMarketRef> {
-	if (!raw) return {};
-	try {
-		const parsed = JSON.parse(raw) as Record<string, JupiterMarketRef>;
-		return parsed && typeof parsed === "object" ? parsed : {};
-	} catch {
-		return {};
-	}
-}
 
 export function loadAgentConfig(env: Env): AgentConfig {
 	const p = AGENT_POLICY;
@@ -94,8 +75,6 @@ export function loadAgentConfig(env: Env): AgentConfig {
 		usdcMintPubKey: env.USDC_MINT_PUBKEY || "",
 		solanaPrivateKey: env.SOLANA_PRIVATE_KEY || "",
 		jupiterApiUrl: (env.JUPITER_API_URL || "https://api.jup.ag/prediction/v1").replace(/\/$/, ""),
-		jupiterApiKey: env.JUPITER_API_KEY || "",
-		jupiterMarketMap: parseJupiterMarketMap(env.JUPITER_MARKET_MAP),
 	};
 }
 
@@ -103,13 +82,7 @@ export function integrationFlags(env: Env, config: AgentConfig) {
 	return {
 		ai: Boolean(env.AI),
 		txline: Boolean(config.txlineApiKey && config.txlineApiUrl),
-		// Execution venue = Jupiter Predict (agent wallet + portal key + a mapped market).
-		// Key kept as `betdex` so AgentStatus/frontend types stay unchanged.
-		betdex: Boolean(
-			config.solanaPrivateKey &&
-				config.jupiterApiKey &&
-				Object.keys(config.jupiterMarketMap).length > 0,
-		),
+		jupiter: Boolean(config.solanaPrivateKey && config.jupiterApiUrl),
 		kamino: Boolean(env.SOLANA_PRIVATE_KEY && config.kaminoMarketPubKey && config.usdcMintPubKey),
 		wallet: Boolean(env.SOLANA_PRIVATE_KEY),
 	};
@@ -118,5 +91,5 @@ export function integrationFlags(env: Env, config: AgentConfig) {
 /** True when the agent can attempt a live market-making tick end-to-end. */
 export function isAgentReady(env: Env, config: AgentConfig): boolean {
 	const f = integrationFlags(env, config);
-	return f.txline && f.betdex && f.wallet;
+	return f.txline && f.jupiter && f.wallet;
 }

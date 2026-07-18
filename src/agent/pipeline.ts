@@ -5,7 +5,7 @@
  * 1. Market     → real TxLINE consensus odds (fair value)
  * 2. Yield      → real Kamino position (or HOLD if none)
  * 3. Decision   → Llama + Y_net market-making guardrails
- * 4. Execution  → withdraw Kamino → BetDEX maker (safe abort)
+ * 4. Execution  → withdraw Kamino → Jupiter Predict maker (safe abort)
  * 5. Book       → register open position for later settlement
  * 6. Persist    → KV history
  *
@@ -189,6 +189,8 @@ export async function runAgentTick(env: Env): Promise<AgentTickResult> {
 				decision,
 				market.matchId,
 				market.match,
+				market.p1,
+				market.p2,
 			);
 			execution = {
 				...exec,
@@ -322,7 +324,7 @@ async function buildProjection(
 
 /**
  * Safe two-step execution:
- * withdraw Kamino → if fail, abort (never place BetDEX).
+ * withdraw Kamino → if fail, abort (never place Jupiter Predict).
  * On real order place, open book for settlement.
  */
 async function executeTradePath(
@@ -331,6 +333,8 @@ async function executeTradePath(
 	decision: Decision,
 	matchId: string,
 	match: string,
+	p1?: string,
+	p2?: string,
 ): Promise<TickExecution> {
 	const size = config.tradeSizeUsdc;
 	const team = decision.team!;
@@ -352,6 +356,8 @@ async function executeTradePath(
 		side,
 		fairOdds: decision.fairOdds,
 		matchId,
+		p1,
+		p2,
 	});
 
 	if (order.status !== "placed") {

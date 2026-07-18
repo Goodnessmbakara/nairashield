@@ -2,7 +2,7 @@
  * NairaShield pricing & net-return model (PRD §2.2 + research pivot).
  *
  * We do NOT arbitrage TxLINE against itself.
- * TxLINE = fair value. We quote maker prices on BetDEX with a margin,
+ * TxLINE = fair value. We quote maker prices on Jupiter Predict with a margin,
  * and only leave Kamino when expected spread capture beats idle yield cost.
  *
  * Y_net = (sum α_i · O_i − 1) · C − C · r · T   (directional / back form)

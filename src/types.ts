@@ -3,8 +3,8 @@ export interface Env {
 	/** Workers AI binding (Llama etc.) */
 	// eslint-disable-next-line @typescript-eslint/no-explicit-any
 	AI: any;
-	/** D1 — primary relational store (users, tick mirror) */
-	DB: D1Database;
+	/** Neon PostgreSQL connection string */
+	DATABASE_URL: string;
 	/** Session + OAuth state store */
 	SESSIONS: KVNamespace;
 	/** Agent tick history + position snapshots + open books */
@@ -39,13 +39,6 @@ export interface Env {
 
 	/** Jupiter Predict (execution venue — Solana mainnet, no KYC, agent-signed) */
 	JUPITER_API_URL?: string;
-	/** Free key from portal.jup.ag/api-keys (registration, not identity KYC) */
-	JUPITER_API_KEY?: string;
-	/**
-	 * JSON map: TxLINE fixtureId -> { outcomes: { teamLabel: { marketId, side } } }.
-	 * Curated because TxLINE fixtures and Jupiter market ids share no common key.
-	 */
-	JUPITER_MARKET_MAP?: string;
 	// Agent policy (yieldApy, trade size, margins, etc.) lives in src/agent/config.ts — not env.
 }
 
@@ -76,6 +69,9 @@ export type Decision = {
 export type MarketOdds = {
 	matchId: string;
 	match: string;
+	/** TxLINE participant names — used by Jupiter auto-discovery */
+	p1?: string;
+	p2?: string;
 	status: "PRE_MATCH" | "IN_PLAY" | "ENDED" | "UNKNOWN";
 	minute?: number;
 	/** Decimal odds keyed by outcome label — TxLINE consensus / fair value */
@@ -129,7 +125,7 @@ export type OpenPosition = {
 	fairOdds: number;
 	orderId: string;
 	placedAt: string;
-	/** Soft cue to query BetDEX for settlement (not synthetic PnL) */
+	/** Soft cue to query Jupiter Predict for settlement (not synthetic PnL) */
 	settleAfter: string;
 	status: "open" | "settled";
 	/** Filled when settled */
@@ -228,7 +224,7 @@ export type AgentStatus = {
 	integrations: {
 		ai: boolean;
 		txline: boolean;
-		betdex: boolean;
+		jupiter: boolean;
 		kamino: boolean;
 		wallet: boolean;
 	};

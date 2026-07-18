@@ -29,6 +29,9 @@ export type PlaceMakerParams = {
 	side?: "BACK" | "LAY";
 	fairOdds?: number;
 	matchId?: string;
+	/** TxLINE participant names — used for auto-discovery when matchId has no cached map. */
+	p1?: string;
+	p2?: string;
 };
 
 type JupiterOrderResponse = {
@@ -45,17 +48,96 @@ type JupiterOrderResponse = {
 	message?: string;
 };
 
+type JupiterMarket = { marketId: string; title: string; status: string };
+type JupiterEvent = {
+	eventId: string;
+	subcategory?: string;
+	metadata?: { title?: string };
+	markets?: JupiterMarket[];
+};
+
 const USDC_MINT = "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v";
 
-function resolveOutcome(
-	config: AgentConfig,
+/**
+ * In-process cache: TxLINE fixtureId -> { teamLabel -> JupiterOutcomeRef }
+ * Populated lazily on first order attempt per fixture.
+ * Workers are single-threaded and short-lived, so a plain Map is safe.
+ */
+const outcomeCache = new Map<string, Record<string, JupiterOutcomeRef>>();
+
+/**
+ * Discover the Jupiter Predict event for a given match by searching with
+ * participant names, then matching the event whose open markets contain
+ * both teams. Returns null if no match found or API unreachable.
+ */
+async function discoverOutcomes(
+	apiUrl: string,
+	p1: string,
+	p2: string,
+): Promise<Record<string, JupiterOutcomeRef> | null> {
+	try {
+		// Search with p1 name; Jupiter's search is relevance-ranked so we filter client-side
+		const res = await fetch(
+			`${apiUrl}/events?search=${encodeURIComponent(p1)}&category=sports&limit=20`,
+			{ headers: { accept: "application/json" } },
+		);
+		if (!res.ok) return null;
+		const body = (await res.json()) as unknown;
+		const events: JupiterEvent[] = Array.isArray(body)
+			? (body as JupiterEvent[])
+			: ((body as Record<string, unknown>).data as JupiterEvent[] | undefined) ?? [];
+
+		const p1l = p1.toLowerCase();
+		const p2l = p2.toLowerCase();
+
+		for (const event of events) {
+			const markets = (event.markets ?? []).filter((m) => m.status === "open");
+			const titles = markets.map((m) => m.title.toLowerCase());
+			// The per-match event has exactly these teams (and optionally Draw) as markets.
+			// The tournament winner event has 30+ markets — reject it by requiring both teams
+			// are present AND the event has ≤5 markets total (match-level).
+			if (
+				titles.includes(p1l) &&
+				titles.includes(p2l) &&
+				markets.length <= 5
+			) {
+				const outcomes: Record<string, JupiterOutcomeRef> = {};
+				for (const m of markets) {
+					outcomes[m.title] = { marketId: m.marketId, side: "YES" };
+				}
+				return outcomes;
+			}
+		}
+		return null;
+	} catch {
+		return null;
+	}
+}
+
+async function resolveOutcome(
+	apiUrl: string,
 	matchId: string,
+	p1: string | undefined,
+	p2: string | undefined,
 	team: string,
-): JupiterOutcomeRef | null {
-	const ref = config.jupiterMarketMap[matchId];
-	if (!ref?.outcomes) return null;
-	if (ref.outcomes[team]) return ref.outcomes[team];
-	const hit = Object.entries(ref.outcomes).find(
+): Promise<JupiterOutcomeRef | null> {
+	// 1. Check cache
+	let outcomes = outcomeCache.get(matchId);
+
+	// 2. Auto-discover if not cached and we have participant names
+	if (!outcomes && p1 && p2) {
+		const discovered = await discoverOutcomes(apiUrl, p1, p2);
+		if (discovered) {
+			outcomeCache.set(matchId, discovered);
+			outcomes = discovered;
+		}
+	}
+
+	if (!outcomes) return null;
+
+	// Exact match first, then case-insensitive
+	if (outcomes[team]) return outcomes[team];
+	const hit = Object.entries(outcomes).find(
 		([label]) => label.toLowerCase() === team.toLowerCase(),
 	);
 	return hit ? hit[1] : null;
@@ -78,15 +160,19 @@ export async function placeMakerOrder(
 	});
 
 	if (!config.solanaPrivateKey) return fail("Agent wallet not configured (SOLANA_PRIVATE_KEY).");
-	if (!config.jupiterApiKey) {
-		return fail("Jupiter Predict not configured. Set JUPITER_API_KEY (free key from portal.jup.ag).");
-	}
 	if (!params.matchId) return fail("Missing matchId; cannot resolve a Jupiter market.");
 
-	const outcome = resolveOutcome(config, params.matchId, params.team);
+	const outcome = await resolveOutcome(
+		config.jupiterApiUrl,
+		params.matchId,
+		params.p1,
+		params.p2,
+		params.team,
+	);
 	if (!outcome?.marketId) {
 		return fail(
-			`No Jupiter market mapped for fixture ${params.matchId} / team "${params.team}". Set JUPITER_MARKET_MAP.`,
+			`No Jupiter market found for fixture ${params.matchId} / team "${params.team}". ` +
+			`Ensure p1/p2 participant names are passed so auto-discovery can search Jupiter.`,
 		);
 	}
 
@@ -102,7 +188,6 @@ export async function placeMakerOrder(
 			headers: {
 				"content-type": "application/json",
 				accept: "application/json",
-				"x-api-key": config.jupiterApiKey,
 			},
 			body: JSON.stringify({
 				ownerPubkey: keypair.publicKey.toBase58(),
@@ -175,7 +260,7 @@ export async function closePosition(
 	orderId: string,
 ): Promise<{ success: boolean; txid?: string; error?: string }> {
 	const [, positionPubkey] = orderId.split("|");
-	if (!config.jupiterApiKey) return { success: false, error: "Jupiter not configured" };
+	if (!config.jupiterApiUrl) return { success: false, error: "Jupiter not configured" };
 	if (!positionPubkey) return { success: false, error: "No positionPubkey recorded on this order" };
 	if (!config.solanaPrivateKey) return { success: false, error: "Agent wallet not configured" };
 
@@ -187,7 +272,6 @@ export async function closePosition(
 				headers: {
 					accept: "application/json",
 					"content-type": "application/json",
-					"x-api-key": config.jupiterApiKey,
 				},
 			},
 		);
@@ -233,12 +317,12 @@ export async function fetchOrderSettlement(
 	config: AgentConfig,
 	orderId: string,
 ): Promise<{ settled: boolean; pnlUsdc?: number; returnedUsdc?: number; error?: string } | null> {
-	if (!config.jupiterApiKey || !orderId) return null;
+	if (!config.jupiterApiUrl || !orderId) return null;
 
 	const [orderPubkey, positionPubkey] = orderId.split("|");
 	if (!orderPubkey) return null;
 
-	const headers = { accept: "application/json", "x-api-key": config.jupiterApiKey };
+	const headers = { accept: "application/json" };
 
 	try {
 		const statusRes = await fetch(
