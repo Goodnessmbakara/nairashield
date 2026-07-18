@@ -41,12 +41,15 @@ export function estimatedEarned(ticks: Tick[]): number | null {
   const balance = latest.yield!.balanceUsdc!;
   const apy = latest.yield?.apy ?? 0.08;
 
-  // Time elapsed in hours between oldest and newest tick
-  const oldestTime = new Date(oldest.receivedAt || Date.now()).getTime();
-  const latestTime = new Date(latest.receivedAt || Date.now()).getTime();
-  const hoursElapsed = Math.max(0, (latestTime - oldestTime) / 3_600_000);
+  // tick.id = "tick_<ms>" — reliable timestamp source
+  const msFromId = (id: string) => {
+    const n = Number(id.replace("tick_", ""));
+    return Number.isFinite(n) && n > 0 ? n : Date.now();
+  };
+  const hoursElapsed = Math.max(0, (msFromId(latest.id) - msFromId(oldest.id)) / 3_600_000);
 
-  // APY → per-hour rate, applied to balance
-  const earned = balance * apy * (hoursElapsed / 8760);
-  return Math.round(earned * 1_000_000) / 1_000_000; // 6 decimal places
+  // Show per-day earning rate when session is too short to show a meaningful delta
+  const hoursToUse = hoursElapsed > 0 ? hoursElapsed : 24;
+  const earned = balance * apy * (hoursToUse / 8760);
+  return Math.round(earned * 1_000_000) / 1_000_000;
 }
