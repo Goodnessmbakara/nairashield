@@ -24,22 +24,6 @@ by deterministic math → execution signed by the agent's own keypair.
 Absolute no-mocks rule: any missing credential or empty feed produces an
 honest HOLD with the reason on the dashboard — nothing is ever fabricated.
 
-## TxLINE endpoints used
-- `POST /auth/guest/start` — guest JWT (auto-refreshed per call)
-- `POST /api/token/activate` — one-time activation after the on-chain
-  `subscribe` (service level 1, free tier, devnet — paid with devnet SOL)
-- `GET /api/fixtures/snapshot` — fixture discovery + "Watching" panel
-- `GET /api/odds/snapshot/{fixtureId}` — live odds (per-fixture)
-- `GET /api/scores/snapshot/{fixtureId}` — settlement scores
-Auth model: `Authorization: Bearer <guestJwt>` + `X-Api-Token: <activated>`.
+## TxLINE
 
-## Feedback for TxODDS
-**Liked:** single normalized JSON schema across competitions; the on-chain
-activation flow is genuinely novel; free World Cup tier made hacking
-frictionless; snapshots are fast.
-**Friction:** devnet exposes only per-fixture odds/scores endpoints — the
-global snapshots 404, which we discovered by probing; empty snapshots
-outside the live interval return `[]`, which initially reads as breakage —
-a `{"live":false,"next":...}` envelope would help; live payloads use
-PascalCase keys while docs show camelCase (we normalize both); the OpenAPI
-spec URL referenced by the docs page returns 500.
+Endpoints, auth, and feedback: **[docs/TXLINE.md](docs/TXLINE.md)** (fixtures / per-fixture odds / scores; guest JWT + `X-Api-Token`).
