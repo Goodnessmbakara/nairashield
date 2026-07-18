@@ -3,6 +3,9 @@
 /**
  * Click a live TxLINE fixture → run real on-chain verify (txoracle).
  * Proof results only come from the worker — never invented.
+ *
+ * Interaction polish (Emil design-eng): instant press feedback, calm selection,
+ * proof enters with opacity + slight Y (not scale-from-0), spinner-only loading.
  */
 
 import React from "react";
@@ -25,7 +28,7 @@ function ProofDetail({
 }) {
   return (
     <div
-      className={`rounded-medium border px-4 py-4 ${
+      className={`t-proof-enter rounded-medium border px-4 py-4 ${
         verification.ok
           ? "border-success-200 bg-success-50/50"
           : "border-default-200 bg-content2"
@@ -41,15 +44,14 @@ function ProofDetail({
           >
             {verification.ok ? "Verified" : "Not verified"}
           </Chip>
-          <Chip radius="sm" size="sm" variant="flat">
-            {verification.stage}
-          </Chip>
-          <span className="text-tiny text-default-400">{verification.cluster}</span>
+          <span className="text-tiny text-default-400">
+            {verification.stage} · {verification.cluster}
+          </span>
         </div>
         {onClose && (
           <button
             type="button"
-            className="text-tiny text-default-400 underline-offset-2 hover:underline"
+            className="t-row-press text-tiny text-default-400 underline-offset-2 hover:text-default-600 hover:underline"
             onClick={onClose}
           >
             Clear
@@ -172,19 +174,22 @@ export default function ProofsView({ ticks }: Props) {
                 Markets
               </h2>
               <p className="text-tiny text-default-400">
-                Tap a fixture to run the on-chain Merkle proof check
+                Tap a fixture to verify on-chain
               </p>
             </div>
           </div>
 
           {fixtures === null ? (
-            <p className="py-6 text-center text-small text-default-400">Loading markets…</p>
+            <div className="flex items-center justify-center gap-2 py-8 text-default-400">
+              <Spinner size="sm" />
+              <span className="text-small">Loading markets…</span>
+            </div>
           ) : list.length === 0 ? (
             <p className="py-6 text-center text-small text-default-400">
               No fixtures in feed right now.
             </p>
           ) : (
-            <ul className="flex flex-col gap-2">
+            <ul className="flex flex-col gap-1.5">
               {list.map((f) => {
                 const selected = selectedId === f.fixtureId;
                 const busy = loadingId === f.fixtureId;
@@ -192,13 +197,13 @@ export default function ProofsView({ ticks }: Props) {
                   <li key={f.fixtureId}>
                     <button
                       type="button"
-                      disabled={busy || loadingId !== null}
+                      disabled={loadingId !== null}
                       onClick={() => runVerify(f.fixtureId)}
-                      className={`flex w-full items-center justify-between gap-3 rounded-medium border px-3 py-2.5 text-left transition-colors ${
+                      className={`t-row-press flex w-full items-center justify-between gap-3 rounded-medium border px-3 py-2.5 text-left ${
                         selected
-                          ? "border-primary-300 bg-primary-50/60"
-                          : "border-default-100 bg-content2/60 hover:border-default-300 hover:bg-content2"
-                      } disabled:opacity-60`}
+                          ? "border-foreground/15 bg-foreground/[0.04] shadow-sm"
+                          : "border-transparent bg-content2/70 hover:bg-content2"
+                      } disabled:cursor-wait disabled:opacity-70`}
                     >
                       <div className="min-w-0">
                         <p className="truncate text-small font-medium text-foreground">
@@ -211,9 +216,15 @@ export default function ProofsView({ ticks }: Props) {
                       </div>
                       <div className="flex shrink-0 items-center gap-2">
                         {busy ? (
-                          <Spinner size="sm" />
+                          <Spinner size="sm" color="current" />
                         ) : (
-                          <span className="text-tiny font-medium text-primary">Verify</span>
+                          <span
+                            className={`text-tiny font-semibold ${
+                              selected ? "text-foreground" : "text-primary"
+                            }`}
+                          >
+                            Verify
+                          </span>
                         )}
                         {f.bettable && (
                           <Chip
@@ -246,7 +257,7 @@ export default function ProofsView({ ticks }: Props) {
                 On-chain proof
               </h2>
               <p className="text-tiny text-default-400">
-                TxLINE Merkle proof → txoracle validate_fixture on Solana
+                TxLINE Merkle → txoracle validate_fixture
               </p>
             </div>
           </div>
@@ -260,24 +271,22 @@ export default function ProofsView({ ticks }: Props) {
           {loadingId && !active ? (
             <div className="flex flex-col items-center gap-2 py-8 text-default-400">
               <Spinner size="sm" />
-              <p className="text-small">Checking fixture {loadingId} on-chain…</p>
+              <p className="text-small">Checking {loadingId}…</p>
             </div>
           ) : active ? (
             <ProofDetail verification={active} onClose={() => setActive(null)} />
           ) : (
             <div className="rounded-medium border border-dashed border-default-200 px-4 py-6 text-center">
-              <p className="text-small text-default-500">Pick a market above to verify</p>
-              <p className="mt-1 text-tiny text-default-400">
-                Or open a recent result from agent ticks below.
-              </p>
+              <p className="text-small text-default-500">Pick a market to verify</p>
             </div>
           )}
 
           {fromTicks.length > 0 && (
-            <div className="flex flex-col gap-2">
-              <p className="text-tiny font-medium text-default-500">From recent agent ticks</p>
+            <div className="flex flex-col gap-1.5">
+              <p className="text-tiny font-medium text-default-500">From recent ticks</p>
               {fromTicks.slice(0, 8).map((t) => {
                 const v = t.verification!;
+                const selected = active?.fixtureId === v.fixtureId && selectedId === v.fixtureId;
                 return (
                   <button
                     key={t.id}
@@ -287,7 +296,11 @@ export default function ProofsView({ ticks }: Props) {
                       setActive(v);
                       setError(null);
                     }}
-                    className="flex w-full items-start justify-between gap-3 rounded-medium border border-transparent bg-content2 px-3 py-2.5 text-left transition-colors hover:border-default-200"
+                    className={`t-row-press flex w-full items-start justify-between gap-3 rounded-medium border px-3 py-2.5 text-left ${
+                      selected
+                        ? "border-foreground/15 bg-foreground/[0.04]"
+                        : "border-transparent bg-content2 hover:bg-content2/80"
+                    }`}
                   >
                     <div className="min-w-0">
                       <p className="truncate text-tiny font-medium text-foreground">
@@ -316,6 +329,7 @@ export default function ProofsView({ ticks }: Props) {
             <Button
               size="sm"
               variant="flat"
+              className="t-btn-press"
               startContent={<Icon icon="solar:refresh-linear" width={14} />}
               onPress={() => runVerify(selectedId)}
             >

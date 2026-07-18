@@ -42,6 +42,17 @@ cd web && pnpm dev               # UI  → :4321
 
 Apply SQL in `migrations/` to Neon manually. Ops detail: [HANDOFF.md](HANDOFF.md). Submission paste: [SUBMISSION.md](SUBMISSION.md).
 
+## Agent SDK / MCP
+
+Give Retegol to another agent via npm (read-only: status, fixtures, verify, history):
+
+```bash
+npm install @retegol/agent
+# or MCP: npx -y @retegol/agent  with RETEGOL_URL + RETEGOL_AGENT_KEY
+```
+
+See [`packages/retegol-agent/README.md`](packages/retegol-agent/README.md). Worker routes: `GET /v1/*` (secret `RETEGOL_AGENT_KEY`).
+
 ## Deploy
 
 Push to `main` → Actions deploys Worker `retegol-bot` then Pages `retegol`.  

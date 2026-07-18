@@ -70,6 +70,8 @@
 
     .t-card-lift,
     .t-btn-press,
+    .t-row-press,
+    .t-proof-enter,
     .t-btn-primary,
     .t-btn-secondary,
     .t-success-check {
@@ -208,10 +210,44 @@
     background-color: hsl(var(--heroui-default-100));
   }
 
+  /* List/row press — no hover lift (high-frequency taps) */
+  .t-row-press {
+    transition:
+      transform var(--ui-dur-fast) var(--ui-ease-fast),
+      background-color var(--ui-dur) var(--ui-ease-out),
+      border-color var(--ui-dur) var(--ui-ease-out);
+    will-change: transform;
+  }
+
+  .t-row-press:active {
+    transform: scale(var(--ui-press));
+  }
+
+  /* Proof panel enter — opacity + slight Y, never scale-from-0 */
+  .t-proof-enter {
+    animation: t-proof-enter 200ms var(--ui-ease-out) both;
+  }
+
+  @keyframes t-proof-enter {
+    from {
+      opacity: 0;
+      transform: translateY(4px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+
   @media (prefers-reduced-motion: reduce) {
     .t-btn-press:hover,
-    .t-btn-press:active {
+    .t-btn-press:active,
+    .t-row-press:active {
       transform: none;
+    }
+
+    .t-proof-enter {
+      animation: none;
     }
   }
 

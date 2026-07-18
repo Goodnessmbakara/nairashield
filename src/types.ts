@@ -12,8 +12,14 @@ export interface Env {
 
 	/** Solana keypair (base58). Optional in local dev. */
 	SOLANA_PRIVATE_KEY?: string;
-	/** Solana RPC endpoint */
+	/** Solana RPC for Kamino / Jupiter (mainnet). Public Solana RPCs block Cloudflare — use Helius/QuickNode. */
 	RPC_URL?: string;
+	/**
+	 * Solana RPC for TxLINE on-chain verify (must match TxLINE cluster).
+	 * When TxLINE is on txline-dev, set a *devnet* Helius/QuickNode URL here.
+	 * Falls back to RPC_URL if unset.
+	 */
+	TXLINE_RPC_URL?: string;
 
 	/** Google OAuth */
 	GOOGLE_CLIENT_ID: string;
@@ -35,6 +41,11 @@ export interface Env {
 
 	/** Shared secret for the external cron trigger (GET /agent/run?key=…). */
 	CRON_SECRET?: string;
+	/**
+	 * API key for read-only agent SDK / MCP (`GET /v1/*`).
+	 * Pass as `Authorization: Bearer …` or `X-Retegol-Key`.
+	 */
+	RETEGOL_AGENT_KEY?: string;
 	/** Fine-grained GitHub token for the team-designated state repo. */
 	GH_TOKEN?: string;
 	/** Team-designated state repo as "owner/repo" (owned by whoever mints GH_TOKEN). */

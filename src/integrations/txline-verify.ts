@@ -241,8 +241,13 @@ export async function verifyMatchOnChain(
 	if (!origin || !config.txlineApiKey) {
 		return { ...base, reason: "TxLINE not configured for fixture verification." };
 	}
-	if (!config.rpcUrl) {
-		return { ...base, reason: "RPC_URL required to verify fixtures on-chain." };
+	const rpcUrl = config.txlineRpcUrl || config.rpcUrl;
+	if (!rpcUrl) {
+		return {
+			...base,
+			reason:
+				"TXLINE_RPC_URL (or RPC_URL) required to verify fixtures on-chain. Public api.*.solana.com blocks Cloudflare — use Helius/QuickNode.",
+		};
 	}
 
 	// Pure fixture id (API may pack game state in high bits)
@@ -287,8 +292,16 @@ export async function verifyMatchOnChain(
 		base.explorerUrl = explorerAccountUrl(cluster, rootsPda.toBase58());
 		base.stage = "pda";
 
-		const connection = new Connection(config.rpcUrl, "confirmed");
-		const account = await connection.getAccountInfo(rootsPda, "confirmed");
+		const connection = new Connection(rpcUrl, "confirmed");
+		let account;
+		try {
+			account = await connection.getAccountInfo(rootsPda, "confirmed");
+		} catch (rpcErr) {
+			return {
+				...base,
+				reason: rpcBlockedReason(rpcErr, cluster),
+			};
+		}
 		if (!account) {
 			return {
 				...base,
@@ -362,7 +375,20 @@ export async function verifyMatchOnChain(
 	} catch (e) {
 		return {
 			...base,
-			reason: e instanceof Error ? e.message : String(e),
+			reason: rpcBlockedReason(e, cluster),
 		};
 	}
+}
+
+/** Public Solana RPCs return 403 to Cloudflare Worker IPs — point operators at a fix. */
+function rpcBlockedReason(err: unknown, cluster: "mainnet-beta" | "devnet"): string {
+	const msg = err instanceof Error ? err.message : String(err);
+	if (/403|blocked|Forbidden/i.test(msg)) {
+		const hint =
+			cluster === "devnet"
+				? "Set wrangler secret TXLINE_RPC_URL to a *devnet* Helius/QuickNode URL (public api.devnet.solana.com blocks Cloudflare)."
+				: "Set wrangler secret RPC_URL (or TXLINE_RPC_URL) to a paid RPC — public api.mainnet-beta.solana.com blocks Cloudflare.";
+		return `Solana RPC blocked this Worker (403). ${hint}`;
+	}
+	return msg;
 }

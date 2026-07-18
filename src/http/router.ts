@@ -59,6 +59,10 @@ export async function handleFetch(request: Request, env: Env): Promise<Response>
 				history: "GET /agent/history (auth)",
 				fixtures: "GET /agent/fixtures (auth)",
 				verify: "GET /agent/verify?fixtureId= (auth)",
+				v1Status: "GET /v1/status (RETEGOL_AGENT_KEY)",
+				v1Fixtures: "GET /v1/fixtures (RETEGOL_AGENT_KEY)",
+				v1History: "GET /v1/history (RETEGOL_AGENT_KEY)",
+				v1Verify: "GET /v1/verify?fixtureId= (RETEGOL_AGENT_KEY)",
 				wallet: "POST /account/wallet | GET /account/wallet | PUT /account/wallet/withdrawal",
 				profile: "GET /account/profile | POST /account/profile",
 				balance: "GET /account/balance",
@@ -283,6 +287,48 @@ export async function handleFetch(request: Request, env: Env): Promise<Response>
 		return json({ ticks, count: ticks.length });
 	}
 
+	// ── Public agent SDK / MCP API (API key — read-only) ──────────────
+	if (method === "GET" && path.startsWith("/v1/")) {
+		const keyAuth = requireAgentKey(request, env);
+		if (keyAuth instanceof Response) return keyAuth;
+
+		if (path === "/v1/status") {
+			const status = await getAgentStatus(env);
+			return json(status);
+		}
+
+		if (path === "/v1/fixtures") {
+			const config = loadAgentConfig(env);
+			const fixtures = await fetchUpcomingFixtures(config);
+			const now = Date.now();
+			return json({
+				fixtures: fixtures.map((f) => ({
+					...f,
+					live: f.start <= now && now - f.start < 3 * 3600 * 1000,
+					bettable: Boolean(config.jupiterApiUrl && config.solanaPrivateKey),
+				})),
+			});
+		}
+
+		if (path === "/v1/history") {
+			const limit = Math.min(Number(url.searchParams.get("limit") || 40), 50);
+			const ticks = await listTicks(env, limit);
+			return json({ ticks, count: ticks.length });
+		}
+
+		if (path === "/v1/verify") {
+			const fixtureId = (url.searchParams.get("fixtureId") || "").trim();
+			if (!fixtureId) {
+				return json({ error: "fixtureId required" }, 400);
+			}
+			const config = loadAgentConfig(env);
+			const verification = await verifyMatchOnChain(config, fixtureId);
+			return json({ verification });
+		}
+
+		return json({ error: "Not found", path }, 404);
+	}
+
 	// ── FossaPay webhooks (no session — signature-verified) ───────────
 	if (method === "POST" && path === "/webhooks/fossapay") {
 		return handleFossaPayWebhook(request, env);
@@ -297,4 +343,21 @@ export async function handleFetch(request: Request, env: Env): Promise<Response>
 
 export function handleWithCors(request: Request, env: Env, response: Response): Response {
 	return withCors(request, env, response);
+}
+
+/** Bearer or X-Retegol-Key gate for `/v1/*` (SDK / MCP). */
+function requireAgentKey(request: Request, env: Env): true | Response {
+	if (!env.RETEGOL_AGENT_KEY) {
+		return json({ error: "agent API key not configured" }, 503);
+	}
+	const header = request.headers.get("Authorization") || "";
+	const bearer = header.toLowerCase().startsWith("bearer ")
+		? header.slice(7).trim()
+		: "";
+	const alt = (request.headers.get("X-Retegol-Key") || "").trim();
+	const presented = bearer || alt;
+	if (!presented || presented !== env.RETEGOL_AGENT_KEY) {
+		return json({ error: "forbidden" }, 403);
+	}
+	return true;
 }

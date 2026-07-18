@@ -1,0 +1,56 @@
+{
+  "name": "@retegol/agent",
+  "version": "0.1.0",
+  "description": "Retegol agent SDK + MCP server — status, fixtures, on-chain verify, history (read-only)",
+  "type": "module",
+  "main": "./dist/client.js",
+  "types": "./dist/client.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/client.d.ts",
+      "import": "./dist/client.js"
+    },
+    "./client": {
+      "types": "./dist/client.d.ts",
+      "import": "./dist/client.js"
+    }
+  },
+  "bin": {
+    "retegol-agent": "./dist/mcp.js"
+  },
+  "files": [
+    "dist",
+    "README.md"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "prepublishOnly": "npm run build",
+    "typecheck": "tsc -p tsconfig.json --noEmit"
+  },
+  "keywords": [
+    "retegol",
+    "solana",
+    "mcp",
+    "agent",
+    "txline",
+    "prediction-markets"
+  ],
+  "author": "Retegol",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Goodnessmbakara/nairashield.git",
+    "directory": "packages/retegol-agent"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.29.0",
+    "zod": "^3.25.76"
+  },
+  "devDependencies": {
+    "@types/node": "^25.0.9",
+    "typescript": "^5.9.3"
+  }
+}

@@ -43,6 +43,8 @@ export type AgentConfig = {
 	takeProfitEdge: number;
 	stopLossEdge: number;
 	rpcUrl: string;
+	/** RPC for TxLINE Merkle verify (devnet when using txline-dev). Defaults to rpcUrl. */
+	txlineRpcUrl: string;
 	txlineApiUrl: string;
 	txlineApiKey: string;
 	kaminoMarketPubKey: string;
@@ -77,6 +79,7 @@ export function loadAgentConfig(env: Env): AgentConfig {
 		takeProfitEdge: p.takeProfitEdge,
 		stopLossEdge: p.stopLossEdge,
 		rpcUrl: env.RPC_URL || p.defaultRpcUrl,
+		txlineRpcUrl: env.TXLINE_RPC_URL || env.RPC_URL || p.defaultRpcUrl,
 		txlineApiUrl: (env.TXLINE_API_URL || "").replace(/\/$/, ""),
 		txlineApiKey: env.TXLINE_API_KEY || "",
 		kaminoMarketPubKey: env.KAMINO_MARKET_PUBKEY || "",

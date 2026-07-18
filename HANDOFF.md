@@ -72,7 +72,8 @@ Astro Frontend (web/)
 | `GOOGLE_CLIENT_SECRET` | OAuth app secret | Google Cloud Console |
 | `SESSION_SECRET` | HMAC secret ≥32 chars | `openssl rand -base64 32` |
 | `SOLANA_PRIVATE_KEY` | Base58 wallet private key | `solana-keygen new` |
-| `RPC_URL` | Solana RPC endpoint | `https://api.devnet.solana.com` or Helius/QuickNode |
+| `RPC_URL` | Solana RPC for Kamino/Jupiter (mainnet). Public `api.*.solana.com` **blocks Cloudflare** (403) — use Helius/QuickNode | `https://mainnet.helius-rpc.com/?api-key=…` |
+| `TXLINE_RPC_URL` | RPC for on-chain fixture verify; must match TxLINE cluster (devnet when on `txline-dev`) | `https://devnet.helius-rpc.com/?api-key=…` |
 | `TXLINE_API_URL` | TxLINE API origin (no `/api` suffix) — **SET: devnet** | `https://txline-dev.txodds.com` |
 | `TXLINE_API_KEY` | **Activated token — SET** (devnet SL1, free) | `scripts/txline-activation/activate-devnet.ts` |
 | `JUPITER_API_KEY` | Jupiter Predict portal key — **SET** (free, no KYC) | portal.jup.ag/api-keys |
@@ -82,6 +83,43 @@ Astro Frontend (web/)
 | `FOSSAPAY_API_KEY` | FossaPay secret key for managed Solana wallets | `dashboard.fossapay.com` → API Keys (`fp_test_sk_` / `fp_live_sk_`) |
 | `FOSSAPAY_WEBHOOK_SECRET` | HMAC secret for `POST /webhooks/fossapay` | FossaPay dashboard webhooks |
 | `FOSSAPAY_API_URL` | Optional API base override | default `https://api-production.fossapay.com/api/v1` |
+| `RETEGOL_AGENT_KEY` | Bearer key for read-only SDK/MCP (`GET /v1/*`) | `openssl rand -hex 32` |
+| `CRON_SECRET` | External cron: `GET /agent/run?key=…` | `openssl rand -hex 32` |
+
+### Agent SDK / MCP (`@retegol/agent`)
+
+Read-only npm package + stdio MCP for other agents (no trade/tick):
+
+| Route | Auth |
+|---|---|
+| `GET /v1/status` | `Authorization: Bearer $RETEGOL_AGENT_KEY` or `X-Retegol-Key` |
+| `GET /v1/fixtures` | same |
+| `GET /v1/history?limit=` | same |
+| `GET /v1/verify?fixtureId=` | same |
+
+```bash
+npx wrangler secret put RETEGOL_AGENT_KEY
+cd packages/retegol-agent && npm run build && npm publish --access public
+```
+
+Cursor / Claude MCP config:
+
+```json
+{
+  "mcpServers": {
+    "retegol": {
+      "command": "npx",
+      "args": ["-y", "@retegol/agent"],
+      "env": {
+        "RETEGOL_URL": "https://retegol-bot.zanbuilds.workers.dev",
+        "RETEGOL_AGENT_KEY": "…"
+      }
+    }
+  }
+}
+```
+
+Package source: [`packages/retegol-agent/`](packages/retegol-agent/).
 
 ---
 
@@ -378,6 +416,8 @@ npx wrangler secret put JUPITER_MARKET_MAP
 npx wrangler secret put KAMINO_MARKET_PUBKEY
 npx wrangler secret put USDC_MINT_PUBKEY
 npx wrangler secret put RPC_URL
+npx wrangler secret put TXLINE_RPC_URL   # required when TxLINE is on txline-dev (devnet Helius)
+npx wrangler secret put RETEGOL_AGENT_KEY  # SDK / MCP read-only API
 npx wrangler secret put FOSSAPAY_API_KEY
 npx wrangler secret put FOSSAPAY_WEBHOOK_SECRET
 
