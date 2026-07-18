@@ -54,8 +54,8 @@ export async function beginGoogleOAuth(request: Request, env: Env): Promise<Resp
 		? returnToRaw
 		: `${defaultFrontend(env)}/dashboard`;
 
-	const state = randomId(24);
-	await putOAuthState(env, state, { returnTo, createdAt: Date.now() });
+	// Stateless: the sealed record IS the state parameter (no storage).
+	const state = await putOAuthState(env, "", { returnTo, createdAt: Date.now() });
 
 	const redirectUri = `${workerOrigin(env)}/auth/google/callback`;
 	const params = new URLSearchParams({
@@ -142,8 +142,8 @@ export async function handleGoogleCallback(request: Request, env: Env): Promise<
 		picture: profile.picture,
 	};
 
-	const { session, token } = await createSession(env, user);
-	const exchange = await createExchangeCode(env, session.id);
+	const { token } = await createSession(env, user);
+	const exchange = await createExchangeCode(env, token);
 
 	// Hand the browser back to the frontend with a one-time exchange code.
 	// Frontend POSTs it to /auth/exchange to receive the signed bearer token.

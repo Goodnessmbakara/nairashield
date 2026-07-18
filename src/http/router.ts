@@ -75,7 +75,8 @@ export async function handleFetch(request: Request, env: Env): Promise<Response>
 		if (!sessionId) return json({ error: "Invalid or expired code", code: "invalid_code" }, 400);
 		const session = await getSession(env, sessionId);
 		if (!session) return json({ error: "Session not found", code: "session_missing" }, 400);
-		const token = await signSessionToken(sessionId, env.SESSION_SECRET);
+		// Stateless: the exchanged value IS the signed session token.
+		const token = sessionId;
 		return json(
 			{ token, user: session.user, expiresAt: session.expiresAt },
 			200,

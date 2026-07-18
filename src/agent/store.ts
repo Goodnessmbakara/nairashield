@@ -1,20 +1,16 @@
 import type { AgentTickResult, Env, OpenPosition, YieldPosition } from "../types";
+import { loadBlob, saveBlob } from "./ghstore";
 
-const HISTORY_KEY = "agent:history";
-const POSITION_KEY = "agent:position";
-const OPEN_BOOKS_KEY = "agent:open_books";
 const MAX_HISTORY = 50;
 
 // ── Tick history ────────────────────────────────────────────────────
 
 export async function appendTick(env: Env, tick: AgentTickResult): Promise<void> {
-	const prev = await listTicks(env);
+	const { blob, sha } = await loadBlob(env);
 
-	// Free-tier KV allows 1,000 writes/day for the whole account. An identical
-	// idle HOLD every minute burns that for nothing: skip persisting when this
-	// tick adds no information over the last stored one. The dashboard already
-	// collapses identical decisions, so nothing visible is lost.
-	const last = prev[0];
+	// Skip persisting when this tick adds no information over the last stored
+	// one (identical idle HOLD). The dashboard collapses duplicates anyway.
+	const last = blob.ticks[0];
 	const uneventful =
 		last &&
 		tick.decision.action === "HOLD" &&
@@ -25,75 +21,54 @@ export async function appendTick(env: Env, tick: AgentTickResult): Promise<void>
 		tick.status !== "Error";
 	if (uneventful) return;
 
-	const next = [tick, ...prev].slice(0, MAX_HISTORY);
-	await env.AGENT_STATE.put(HISTORY_KEY, JSON.stringify(next));
+	blob.ticks = [tick, ...blob.ticks].slice(0, MAX_HISTORY);
+	await saveBlob(env, blob, sha, `tick ${tick.at} ${tick.status} ${tick.decision.action}`);
 }
 
 export async function listTicks(env: Env, limit = 40): Promise<AgentTickResult[]> {
-	const raw = await env.AGENT_STATE.get(HISTORY_KEY);
-	if (!raw) return [];
-	try {
-		const arr = JSON.parse(raw) as AgentTickResult[];
-		return Array.isArray(arr) ? arr.slice(0, limit) : [];
-	} catch {
-		return [];
-	}
+	const { blob } = await loadBlob(env);
+	return blob.ticks.slice(0, limit);
 }
 
 export async function getLastTick(env: Env): Promise<AgentTickResult | null> {
-	const ticks = await listTicks(env, 1);
-	return ticks[0] ?? null;
+	return (await listTicks(env, 1))[0] ?? null;
 }
 
 // ── Yield snapshot ──────────────────────────────────────────────────
 
 export async function savePosition(env: Env, position: YieldPosition): Promise<void> {
-	await env.AGENT_STATE.put(POSITION_KEY, JSON.stringify(position));
+	const { blob, sha } = await loadBlob(env);
+	blob.position = position;
+	await saveBlob(env, blob, sha, `position ${position.updatedAt}`);
 }
 
 export async function loadPosition(env: Env): Promise<YieldPosition | null> {
-	const raw = await env.AGENT_STATE.get(POSITION_KEY);
-	if (!raw) return null;
-	try {
-		const pos = JSON.parse(raw) as YieldPosition;
-		// Reject any legacy synthetic vaults left in KV
-		if (!pos || pos.source !== "live") return null;
-		if (typeof pos.balanceUsdc !== "number" || !Number.isFinite(pos.balanceUsdc)) return null;
-		return pos;
-	} catch {
-		return null;
-	}
+	const { blob } = await loadBlob(env);
+	const pos = blob.position;
+	// Reject any legacy synthetic vaults
+	if (!pos || pos.source !== "live") return null;
+	if (typeof pos.balanceUsdc !== "number" || !Number.isFinite(pos.balanceUsdc)) return null;
+	return pos;
 }
 
 // ── Open books (maker positions awaiting settlement) ────────────────
 
 export async function listOpenPositions(env: Env): Promise<OpenPosition[]> {
-	const raw = await env.AGENT_STATE.get(OPEN_BOOKS_KEY);
-	if (!raw) return [];
-	try {
-		const arr = JSON.parse(raw) as OpenPosition[];
-		return Array.isArray(arr) ? arr.filter((p) => p.status === "open") : [];
-	} catch {
-		return [];
-	}
+	const { blob } = await loadBlob(env);
+	return blob.books.filter((p) => p.status === "open");
 }
 
 export async function listAllPositions(env: Env): Promise<OpenPosition[]> {
-	const raw = await env.AGENT_STATE.get(OPEN_BOOKS_KEY);
-	if (!raw) return [];
-	try {
-		const arr = JSON.parse(raw) as OpenPosition[];
-		return Array.isArray(arr) ? arr : [];
-	} catch {
-		return [];
-	}
+	const { blob } = await loadBlob(env);
+	return blob.books;
 }
 
 async function saveAllPositions(env: Env, positions: OpenPosition[]): Promise<void> {
-	// Keep last 40 settled + all open
+	const { blob, sha } = await loadBlob(env);
 	const open = positions.filter((p) => p.status === "open");
 	const settled = positions.filter((p) => p.status === "settled").slice(0, 40);
-	await env.AGENT_STATE.put(OPEN_BOOKS_KEY, JSON.stringify([...open, ...settled]));
+	blob.books = [...open, ...settled];
+	await saveBlob(env, blob, sha, "books update");
 }
 
 export async function addOpenPosition(env: Env, position: OpenPosition): Promise<void> {
