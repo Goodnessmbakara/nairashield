@@ -20,16 +20,6 @@
     "typescript": "^7.0.2",
     "wrangler": "^4.111.0"
   },
-  "pnpm": {
-    "onlyBuiltDependencies": [
-      "bigint-buffer",
-      "bufferutil",
-      "esbuild",
-      "sharp",
-      "utf-8-validate",
-      "workerd"
-    ]
-  },
   "dependencies": {
     "@kamino-finance/klend-sdk": "^9.1.5",
     "@neondatabase/serverless": "^1.1.0",
