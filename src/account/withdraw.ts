@@ -10,14 +10,13 @@ import {
 } from "@solana/spl-token";
 import type { Env } from "../types";
 import type { AgentConfig } from "../agent/config";
-import { getWallet, adjustLockedUsdc, isValidSolanaPubkey } from "./wallet";
+import { getWallet, isValidSolanaPubkey } from "./wallet";
 import {
-	insertTransaction,
-	updateTransactionStatus,
 	getTransaction,
 	listTransactions,
 } from "./ledger";
 import { loadKeypair } from "../blockchain/wallet";
+import { getDb } from "../db/client";
 
 function uuidv4(): string {
 	const arr = crypto.getRandomValues(new Uint8Array(16));
@@ -50,6 +49,8 @@ export async function requestWithdrawal(
 	if (!wallet) return { error: "No deposit wallet found. Call POST /account/wallet first." };
 	if (!wallet.withdrawalAddress) return { error: "Set a withdrawal address first via PUT /account/wallet/withdrawal" };
 
+	// Calculate the gross balance (confirmed deposits minus completed withdrawals)
+	// from the ledger to use as the upper bound in the atomic UPDATE guard.
 	const txs = await listTransactions(env, userSub, 1000, 0);
 	const confirmedIn = txs
 		.filter((t) => t.type === "deposit" && t.status === "confirmed")
@@ -57,23 +58,37 @@ export async function requestWithdrawal(
 	const completedOut = txs
 		.filter((t) => t.type === "withdrawal_executed" && t.status === "completed")
 		.reduce((s, t) => s + t.amountUsdc, 0n);
-	const available = confirmedIn - completedOut - wallet.lockedUsdc;
-
-	if (amountUsdc > available) {
-		return { error: `Insufficient available balance. Available: ${available} micro-USDC` };
-	}
+	const grossBalance = confirmedIn - completedOut;
 
 	const id = uuidv4();
-	await adjustLockedUsdc(env, userSub, amountUsdc);
-	await insertTransaction(env, {
-		id,
-		userSub,
-		type: "withdrawal_request",
-		amountUsdc,
-		status: "pending",
-		txSignature: null,
-		notes: `To: ${wallet.withdrawalAddress}`,
-	});
+	const now = Date.now();
+	const sql = getDb(env);
+
+	// Atomic TOCTOU guard: the WHERE clause ensures that after incrementing
+	// locked_usdc the total does not exceed the gross balance.  If a concurrent
+	// request already used up part of the available balance the UPDATE affects
+	// 0 rows and we return an error without touching the ledger.
+	const updateResult = await sql`
+		UPDATE user_wallets
+		SET locked_usdc = locked_usdc + ${amountUsdc.toString()}
+		WHERE user_sub = ${userSub}
+		  AND (locked_usdc + ${amountUsdc.toString()}) <= ${grossBalance.toString()}
+		RETURNING locked_usdc
+	`;
+
+	if (updateResult.length === 0) {
+		return { error: "Insufficient available balance (concurrent request reduced it)." };
+	}
+
+	await sql`
+		INSERT INTO fund_transactions
+			(id, user_sub, type, amount_usdc, status, tx_signature, notes, created_at, updated_at)
+		VALUES (
+			${id}, ${userSub}, ${"withdrawal_request"}, ${amountUsdc.toString()},
+			${"pending"}, ${null}, ${`To: ${wallet.withdrawalAddress}`},
+			${now}, ${now}
+		)
+	`;
 
 	return { id };
 }
@@ -119,22 +134,41 @@ export async function approveWithdrawal(
 		await connection.confirmTransaction({ signature: sweepSig, blockhash, lastValidBlockHeight }, "confirmed");
 	} catch (e) {
 		const msg = e instanceof Error ? e.message : String(e);
-		await updateTransactionStatus(env, requestId, "pending", `Send failed: ${msg}`);
+		const sql = getDb(env);
+		const now = Date.now();
+		await sql`
+			UPDATE fund_transactions
+			SET status = ${"pending"}, notes = ${`Send failed: ${msg}`}, updated_at = ${now}
+			WHERE id = ${requestId}
+		`;
 		return { error: `On-chain transfer failed: ${msg}` };
 	}
 
-	await insertTransaction(env, {
-		id: uuidv4(),
-		userSub: tx.userSub,
-		type: "withdrawal_executed",
-		amountUsdc: tx.amountUsdc,
-		status: "completed",
-		txSignature: sweepSig,
-		notes: `Approved withdrawal. Request: ${requestId}`,
-	});
-
-	await adjustLockedUsdc(env, tx.userSub, -tx.amountUsdc);
-	await updateTransactionStatus(env, requestId, "completed", `Executed: ${sweepSig}`);
+	// Atomically: insert execution record, decrement locked_usdc, mark request completed.
+	const sql = getDb(env);
+	const execId = uuidv4();
+	const now = Date.now();
+	await sql.transaction([
+		sql`
+			INSERT INTO fund_transactions
+				(id, user_sub, type, amount_usdc, status, tx_signature, notes, created_at, updated_at)
+			VALUES (
+				${execId}, ${tx.userSub}, ${"withdrawal_executed"}, ${tx.amountUsdc.toString()},
+				${"completed"}, ${sweepSig}, ${`Approved withdrawal. Request: ${requestId}`},
+				${now}, ${now}
+			)
+		`,
+		sql`
+			UPDATE user_wallets
+			SET locked_usdc = locked_usdc - ${tx.amountUsdc.toString()}
+			WHERE user_sub = ${tx.userSub}
+		`,
+		sql`
+			UPDATE fund_transactions
+			SET status = ${"completed"}, notes = ${`Executed: ${sweepSig}`}, updated_at = ${now}
+			WHERE id = ${requestId}
+		`,
+	]);
 
 	return { ok: true, txSignature: sweepSig };
 }
@@ -149,13 +183,26 @@ export async function rejectWithdrawal(
 	if (tx.type !== "withdrawal_request") return { error: "Not a withdrawal request" };
 	if (tx.status !== "pending") return { error: `Request is already ${tx.status}` };
 
-	await adjustLockedUsdc(env, tx.userSub, -tx.amountUsdc);
-	await updateTransactionStatus(env, requestId, "rejected", reason ?? "Rejected by admin");
+	// Atomically: decrement locked_usdc and mark request rejected.
+	const sql = getDb(env);
+	const now = Date.now();
+	await sql.transaction([
+		sql`
+			UPDATE user_wallets
+			SET locked_usdc = locked_usdc - ${tx.amountUsdc.toString()}
+			WHERE user_sub = ${tx.userSub}
+		`,
+		sql`
+			UPDATE fund_transactions
+			SET status = ${"rejected"}, notes = ${reason ?? "Rejected by admin"}, updated_at = ${now}
+			WHERE id = ${requestId}
+		`,
+	]);
+
 	return { ok: true };
 }
 
 export async function listPendingWithdrawals(env: Env): Promise<WithdrawalRequest[]> {
-	const { getDb } = await import("../db/client");
 	const sql = getDb(env);
 	const rows = await sql`
 		SELECT id, user_sub, amount_usdc, status, notes, created_at
