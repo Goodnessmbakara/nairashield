@@ -99,16 +99,16 @@ export type YieldOpResult = {
 };
 
 /**
- * Fetch the live USDC supply APY from the Kamino reserve on-chain.
+ * Fetch the live USDC supply APY from a pre-loaded Kamino market.
  * Returns null on any failure — caller falls back to AGENT_POLICY.yieldApy.
  */
-export async function fetchKaminoApy(config: AgentConfig): Promise<number | null> {
-	if (!config.kaminoMarketPubKey || !config.usdcMintPubKey) return null;
+async function fetchKaminoApyFromMarket(
+	market: KaminoMarket,
+	usdcMintPubKey: string,
+	rpc: ReturnType<typeof createSolanaRpc>,
+): Promise<number | null> {
 	try {
-		const rpc = createSolanaRpc(config.rpcUrl);
-		const market = await KaminoMarket.load(rpc, address(config.kaminoMarketPubKey), 400);
-		if (!market) return null;
-		const reserves = market.getReservesByMint(address(config.usdcMintPubKey));
+		const reserves = market.getReservesByMint(address(usdcMintPubKey));
 		if (!reserves?.length) return null;
 		const currentSlot = await rpc.getSlot().send();
 		const apy = reserves[0].totalSupplyAPY(currentSlot);
@@ -120,7 +120,7 @@ export async function fetchKaminoApy(config: AgentConfig): Promise<number | null
 
 /**
  * Read yield position: on-chain first (Kamino obligation), fall back to DB snapshot.
- * Never invents a balance.
+ * Never invents a balance. Uses a single KaminoMarket.load for both balance + APY.
  */
 export async function getYieldPosition(
 	env: Env,
@@ -131,21 +131,26 @@ export async function getYieldPosition(
 	// Try live on-chain read first when market + mint are configured
 	if (config.kaminoMarketPubKey && config.usdcMintPubKey) {
 		try {
-			const [balanceUsdc, liveApy] = await Promise.all([
-				fetchKaminoBalance(config),
-				fetchKaminoApy(config),
-			]);
-			if (balanceUsdc !== null) {
-				const position: YieldPosition = {
-					protocol: "kamino",
-					asset: "USDC",
-					balanceUsdc,
-					apy: liveApy ?? config.yieldApy,
-					source: "live",
-					updatedAt: new Date().toISOString(),
-				};
-				await savePosition(env, position);
-				return position;
+			const rpc = createSolanaRpc(config.rpcUrl);
+			// Single market load shared by balance + APY reads
+			const market = await KaminoMarket.load(rpc, address(config.kaminoMarketPubKey), 400);
+			if (market) {
+				const [balanceUsdc, liveApy] = await Promise.all([
+					fetchKaminoBalanceFromMarket(market, config),
+					fetchKaminoApyFromMarket(market, config.usdcMintPubKey, rpc),
+				]);
+				if (balanceUsdc !== null) {
+					const position: YieldPosition = {
+						protocol: "kamino",
+						asset: "USDC",
+						balanceUsdc,
+						apy: liveApy ?? config.yieldApy,
+						source: "live",
+						updatedAt: new Date().toISOString(),
+					};
+					await savePosition(env, position);
+					return position;
+				}
 			}
 		} catch {
 			// Fall through to stored snapshot
@@ -159,14 +164,13 @@ export async function getYieldPosition(
 }
 
 /**
- * Query the wallet's Kamino USDC obligation balance directly from chain.
+ * Query the wallet's Kamino USDC obligation balance from a pre-loaded market.
  * Returns null if no obligation exists yet or on any error.
  */
-async function fetchKaminoBalance(config: AgentConfig): Promise<number | null> {
-	const rpc = createSolanaRpc(config.rpcUrl);
-	const market = await KaminoMarket.load(rpc, address(config.kaminoMarketPubKey), 400);
-	if (!market) return null;
-
+async function fetchKaminoBalanceFromMarket(
+	market: KaminoMarket,
+	config: AgentConfig,
+): Promise<number | null> {
 	const { Keypair: KP } = await import("@solana/web3.js");
 	const { default: bs58 } = await import("bs58");
 	const walletKp = KP.fromSecretKey(bs58.decode(config.solanaPrivateKey));
@@ -181,10 +185,21 @@ async function fetchKaminoBalance(config: AgentConfig): Promise<number | null> {
 
 	let totalUsdc = 0;
 	for (const d of deposits) {
-		// `amount` is a Decimal in lamports (6 decimals for USDC)
 		if (d.amount) totalUsdc += d.amount.toNumber() / 1_000_000;
 	}
 	return totalUsdc > 0 ? totalUsdc : null;
+}
+
+export async function fetchKaminoApy(config: AgentConfig): Promise<number | null> {
+	if (!config.kaminoMarketPubKey || !config.usdcMintPubKey) return null;
+	try {
+		const rpc = createSolanaRpc(config.rpcUrl);
+		const market = await KaminoMarket.load(rpc, address(config.kaminoMarketPubKey), 400);
+		if (!market) return null;
+		return fetchKaminoApyFromMarket(market, config.usdcMintPubKey, rpc);
+	} catch {
+		return null;
+	}
 }
 
 export async function withdrawYield(
