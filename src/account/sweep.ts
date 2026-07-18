@@ -63,7 +63,7 @@ async function sweepWallet(
 	try {
 		tokenAccountInfo = await getAccount(connection, depositTokenAccount);
 	} catch (e) {
-		throw new Error(`Failed to fetch token account (RPC URL used: ${config.rpcUrl}): ${String(e.name)} - ${String(e)}`);
+		throw new Error(`Failed to fetch token account (RPC URL used: ${connection.rpcEndpoint}): ${String((e as any).name)} - ${String(e)}`);
 	}
 
 	const balanceLamports = BigInt(tokenAccountInfo.amount.toString());
