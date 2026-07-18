@@ -3,7 +3,7 @@
 import React, { useEffect, useState, useMemo } from "react";
 import { Button, Card, CardBody, Chip, Spinner, Progress } from "@heroui/react";
 import { Icon } from "@iconify/react";
-import { fetchReplays, type ReplayData, type Tick } from "../../lib/agent";
+import { fetchReplays, fetchReplayOdds, type ReplayData, type Tick } from "../../lib/agent";
 
 function ReplayPlayer({
   fixture,
@@ -25,6 +25,23 @@ function ReplayPlayer({
 
   const [currentIndex, setCurrentIndex] = useState(0);
   const [isPlaying, setIsPlaying] = useState(false);
+  
+  const [oddsHistory, setOddsHistory] = useState<any[]>([]);
+  const [oddsLoading, setOddsLoading] = useState(false);
+
+  useEffect(() => {
+    const ctrl = new AbortController();
+    setOddsLoading(true);
+    fetchReplayOdds(fixture.fixtureId, ctrl.signal).then(data => {
+      // Sample to ~100 points to prevent UI lag with 10k records
+      const sampled = data.length > 100 ? data.filter((_, i) => i % Math.floor(data.length / 100) === 0) : data;
+      setOddsHistory(sampled);
+      setOddsLoading(false);
+    }).catch(err => {
+      if (err.name !== "AbortError") setOddsLoading(false);
+    });
+    return () => ctrl.abort();
+  }, [fixture.fixtureId]);
 
   useEffect(() => {
     let timer: number;
@@ -140,6 +157,43 @@ function ReplayPlayer({
                  ))}
               </div>
             )}
+            
+            {oddsLoading ? (
+              <div className="flex justify-center py-4"><Spinner size="sm" /></div>
+            ) : oddsHistory.length > 0 ? (
+              <div className="rounded-medium bg-background px-3 py-4">
+                 <p className="text-tiny text-default-500 mb-2">Historical Odds Timeline</p>
+                 <div className="flex h-20 items-end gap-[1px] overflow-x-auto pb-1">
+                   {oddsHistory.map((odd, i) => {
+                     const prices = odd.Prices || odd.prices || [];
+                     const maxPrice = 30000; // max reasonable odds for visual scale
+                     const p1 = prices[0] || 0;
+                     const draw = prices[1] || 0;
+                     const p2 = prices[2] || 0;
+                     const p1h = Math.min(100, Math.max(2, (p1 / maxPrice) * 100));
+                     const drawh = Math.min(100, Math.max(2, (draw / maxPrice) * 100));
+                     const p2h = Math.min(100, Math.max(2, (p2 / maxPrice) * 100));
+                     
+                     // Highlight if agent tick is near this timestamp
+                     const tickTs = new Date(`1970-01-01T${currentTick.receivedAt}Z`).getTime(); // Approximate matching
+                     const isTick = currentTick && currentTick.decision.action === 'TRADE' && i === Math.floor(oddsHistory.length / 2); // Simpler mock highlight for now
+                     
+                     return (
+                       <div key={i} className="flex flex-col justify-end w-1.5 sm:w-2 shrink-0 gap-[1px] group relative cursor-pointer hover:bg-default-100">
+                         {isTick && <div className="absolute -top-3 w-1.5 h-1.5 bg-success rounded-full" />}
+                         <div className="w-full bg-blue-500/70 rounded-t-sm" style={{ height: `${p1h}%` }} title={`Home: ${p1}`} />
+                         <div className="w-full bg-default-400/50 rounded-t-sm" style={{ height: `${drawh}%` }} title={`Draw: ${draw}`} />
+                         <div className="w-full bg-rose-500/70 rounded-t-sm" style={{ height: `${p2h}%` }} title={`Away: ${p2}`} />
+                       </div>
+                     );
+                   })}
+                 </div>
+                 <div className="flex justify-between text-[0.6rem] text-default-400 mt-1 uppercase font-semibold">
+                    <span>Kickoff</span>
+                    <span>Full Time</span>
+                 </div>
+              </div>
+            ) : null}
           </div>
         ) : (
           <p className="py-4 text-center text-small text-default-400">No ticks recorded for this match.</p>

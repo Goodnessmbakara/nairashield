@@ -20,6 +20,15 @@ export default function Hero() {
       id="hero"
     >
       <div className="z-20 flex w-full max-w-2xl flex-col items-center gap-5 text-center sm:gap-6">
+        <motion.div
+          initial={reduce ? false : { opacity: 0, y: ENTER_Y }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={enter(TIMING.heroTitle - 0.1)}
+          className="rounded-full border border-primary/30 bg-primary/10 px-4 py-1.5 text-sm font-medium text-primary shadow-sm"
+        >
+          ✨ Agent First Architecture
+        </motion.div>
+        
         <motion.h1
           className="font-display text-[clamp(32px,7.5vw,48px)] font-bold leading-[1.15] tracking-tighter text-foreground"
           initial={reduce ? false : { opacity: 0, y: ENTER_Y }}

@@ -337,3 +337,20 @@ export async function fetchReplays(limit = 1000, signal?: AbortSignal): Promise<
 		return null;
 	}
 }
+
+/** Fetch historical odds timeline for a specific replay fixture. Auth required. */
+export async function fetchReplayOdds(fixtureId: string, signal?: AbortSignal): Promise<any[]> {
+	if (!isConfigured() || !getToken()) return [];
+	try {
+		const res = await fetch(`${AGENT_URL}/agent/replays/odds?fixtureId=${encodeURIComponent(fixtureId)}`, {
+			signal,
+			headers: authHeaders(),
+			credentials: "include",
+		});
+		if (!res.ok) return [];
+		const body = await res.json() as { odds?: any[] };
+		return body.odds ?? [];
+	} catch {
+		return [];
+	}
+}

@@ -1,9 +1,9 @@
 import type { Env } from "../types";
 import { runAgentTick, getAgentStatus } from "../agent/pipeline";
 import { loadAgentConfig } from "../agent/config";
-import { fetchUpcomingFixtures, fetchPastFixtures, fetchScoreSnapshot } from "../integrations/txline";
+import { fetchUpcomingFixtures, fetchPastFixtures, fetchScoreSnapshot, fetchOddsUpdates } from "../integrations/txline";
 import { verifyMatchOnChain } from "../integrations/txline-verify";
-import { listTicks } from "../agent/store";
+import { listTicks, getPastFixtures, getFixtureTicks } from "../agent/store";
 import { beginGoogleOAuth, googleConfigured, handleGoogleCallback } from "../auth/google";
 import { registerUser, loginUser } from "../auth/emailauth";
 import { preflight, withCors } from "../auth/cors";
@@ -284,28 +284,44 @@ export async function handleFetch(request: Request, env: Env): Promise<Response>
 		if (auth instanceof Response) return auth;
 		const config = loadAgentConfig(env);
 		
-		const fixtures = await fetchPastFixtures(config);
-		const limit = Math.min(Number(url.searchParams.get("limit") || 1000), 2000);
-		const allTicks = await listTicks(env, limit);
-
-		// Group ticks by matchId
-		const history: Record<string, typeof allTicks> = {};
-		for (const t of allTicks) {
-			const matchId = t.market?.matchId || t.market?.match;
-			if (matchId) {
-				if (!history[matchId]) history[matchId] = [];
-				history[matchId].push(t);
-			}
-		}
-
-		// Fetch final scores for the past fixtures
+		// Use local SQLite agent ticks to determine which past fixtures we have
+		const fixtureIds = await getPastFixtures(env, 20);
+		
+		const fixtures: any[] = [];
+		const history: Record<string, any[]> = {};
 		const scores: Record<string, any> = {};
-		await Promise.all(fixtures.map(async (f) => {
-			const score = await fetchScoreSnapshot(config, f.fixtureId);
-			if (score) scores[f.fixtureId] = score;
+
+		await Promise.all(fixtureIds.map(async (fid) => {
+			const ticks = await getFixtureTicks(env, fid);
+			if (ticks.length > 0) {
+				history[fid] = ticks;
+				const fTicks = ticks.filter(t => t.market?.p1 && t.market?.p2);
+				const lastTick = fTicks.length > 0 ? fTicks[fTicks.length - 1] : ticks[0];
+				
+				fixtures.push({
+					fixtureId: fid,
+					p1: lastTick.market?.p1 || 'Team A',
+					p2: lastTick.market?.p2 || 'Team B',
+					start: lastTick.market?.start || lastTick.at,
+				});
+
+				const score = await fetchScoreSnapshot(config, fid);
+				if (score) scores[fid] = score;
+			}
 		}));
 
 		return json({ fixtures, history, scores });
+	}
+
+	if (method === "GET" && path === "/agent/replays/odds") {
+		const auth = await requireSession(request, env);
+		if (auth instanceof Response) return auth;
+		const fixtureId = (url.searchParams.get("fixtureId") || "").trim();
+		if (!fixtureId) return json({ error: "fixtureId required" }, 400);
+		
+		const config = loadAgentConfig(env);
+		const odds = await fetchOddsUpdates(config, fixtureId);
+		return json({ odds });
 	}
 
 	// ── Agent: history ────────────────────────────────────────────────

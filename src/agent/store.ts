@@ -64,6 +64,27 @@ export async function getLastTick(env: Env): Promise<AgentTickResult | null> {
 	return (await listTicks(env, 1))[0] ?? null;
 }
 
+export async function getPastFixtures(env: Env, limit = 50): Promise<string[]> {
+	const sql = getDb(env);
+	const rows = await sql`
+		SELECT DISTINCT json_extract(payload, '$.market.matchId') as fixtureId
+		FROM ticks 
+		WHERE json_extract(payload, '$.market.matchId') IS NOT NULL
+		ORDER BY at DESC LIMIT ${limit}
+	`;
+	return rows.map((r) => String(r.fixtureId)).filter(id => id !== 'null' && id !== '');
+}
+
+export async function getFixtureTicks(env: Env, fixtureId: string): Promise<AgentTickResult[]> {
+	const sql = getDb(env);
+	const rows = await sql`
+		SELECT payload FROM ticks 
+		WHERE json_extract(payload, '$.market.matchId') = ${fixtureId}
+		ORDER BY at ASC
+	`;
+	return rows.map((r) => r.payload as AgentTickResult);
+}
+
 // ── Yield snapshot ──────────────────────────────────────────────────
 
 export async function savePosition(env: Env, position: YieldPosition): Promise<void> {

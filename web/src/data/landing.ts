@@ -8,8 +8,8 @@ export const nav = [
 ];
 
 export const problem = {
-  title: "Meet the AI agent that manages your sports capital",
-  body: "Stop letting your stablecoins sit dead between plays. Your autonomous agent parks your funds in yield, watches live markets 24/7, and only strikes when the math clears.",
+  title: "Agent-First Capital Management",
+  body: "Stop letting your stablecoins sit dead between plays. The AI agent parks your funds in yield, watches live markets 24/7, and only strikes when the math clears.",
 };
 
 export const agitation = {

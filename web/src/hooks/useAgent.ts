@@ -5,9 +5,10 @@ import { fetchAgentHistory, fetchTick, isConfigured, type Tick } from "../lib/ag
 import { getToken } from "../lib/auth";
 import { dedupeTicksForFeed, isIdleHold } from "../lib/ticks";
 
-/** How often we pull cron ticks while the tab is visible (read-only). */
-const LIVE_POLL_MS = 4_000;
-const HIDDEN_POLL_MS = 30_000;
+/** How often we pull cron ticks while the tab is visible (read-only). 
+ * Increased to 60s to prevent exhausting the free tier, since cron only runs every minute. */
+const LIVE_POLL_MS = 60_000;
+const HIDDEN_POLL_MS = 120_000;
 
 /** Shared live agent poller - real ticks only, never fabricates metrics. */
 export function useAgent(options?: { enabled?: boolean }) {

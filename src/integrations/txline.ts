@@ -280,6 +280,31 @@ export async function fetchScoreSnapshot(
 }
 
 /**
+ * Fetch historical odds updates for a specific fixture.
+ */
+export async function fetchOddsUpdates(
+	config: AgentConfig,
+	fixtureId: string,
+): Promise<unknown[]> {
+	if (!config.txlineApiUrl || !config.txlineApiKey) return [];
+
+	const origin = getOrigin(config);
+	const jwt = await getGuestJwt(origin);
+	const url = `${origin}/api/odds/updates/${fixtureId}`;
+
+	try {
+		const res = await fetch(url, {
+			headers: buildHeaders(jwt, config.txlineApiKey),
+		});
+		if (!res.ok) return [];
+		const body = await res.json();
+		return Array.isArray(body) ? body : [];
+	} catch {
+		return [];
+	}
+}
+
+/**
  * Normalize TxLINE API response to internal MarketOdds type.
  *
  * TxLINE wire format: TG users reported PascalCase keys in live payloads
