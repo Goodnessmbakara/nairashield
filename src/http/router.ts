@@ -302,7 +302,7 @@ export async function handleFetch(request: Request, env: Env): Promise<Response>
 					fixtureId: fid,
 					p1: lastTick.market?.p1 || 'Team A',
 					p2: lastTick.market?.p2 || 'Team B',
-					start: lastTick.market?.start || lastTick.at,
+					start: lastTick.at,
 				});
 
 				const score = await fetchScoreSnapshot(config, fid);
