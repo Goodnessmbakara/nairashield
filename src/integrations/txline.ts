@@ -102,7 +102,7 @@ async function fetchOddsSnapshot(
 	let lastErr: Error | null = null;
 	let sawEmptyFeed = false;
 
-	const tryUrl = async (url: string): Promise<MarketOdds | null> => {
+	const tryUrl = async (url: string, p1?: string, p2?: string): Promise<MarketOdds | null> => {
 		try {
 			const res = await fetch(url, { headers });
 			if (!res.ok) {
@@ -117,7 +117,7 @@ async function fetchOddsSnapshot(
 				sawEmptyFeed = true;
 				return null;
 			}
-			return normalizeTxline(body, url);
+			return normalizeTxline(body, url, p1, p2);
 		} catch (e) {
 			lastErr = e instanceof Error ? e : new Error(String(e));
 			return null;
@@ -133,7 +133,7 @@ async function fetchOddsSnapshot(
 	// model): nearest upcoming / in-play fixtures first.
 	const fixtures = await listFixtures(origin, headers);
 	for (const f of fixtures.slice(0, 6)) {
-		const market = await tryUrl(`${origin}/api/odds/snapshot/${f.fixtureId}`);
+		const market = await tryUrl(`${origin}/api/odds/snapshot/${f.fixtureId}`, f.p1, f.p2);
 		if (market) return market;
 	}
 
@@ -160,7 +160,22 @@ export class NoLiveOddsError extends Error {
 	}
 }
 
-export type FixtureRef = { fixtureId: string; p1: string; p2: string; start: number };
+export type FixtureRef = { fixtureId: string; p1: string; p2: string; start: number; flag1?: string; flag2?: string };
+
+const COUNTRY_ISO: Record<string, string> = {
+	France: "fr", England: "gb-eng", Spain: "es", Argentina: "ar",
+	Germany: "de", Brazil: "br", Portugal: "pt", Netherlands: "nl",
+	Italy: "it", Belgium: "be", Croatia: "hr", Uruguay: "uy",
+	Australia: "au", "New Zealand": "nz", Japan: "jp", Morocco: "ma",
+	Vietnam: "vn", Myanmar: "mm", India: "in", Liechtenstein: "li",
+	Gibraltar: "gi", Colombia: "co", Mexico: "mx", USA: "us",
+	Senegal: "sn", Ghana: "gh", Nigeria: "ng", Cameroon: "cm",
+};
+
+function flagUrl(country: string): string | undefined {
+	const iso = COUNTRY_ISO[country];
+	return iso ? `https://flagcdn.com/w40/${iso}.png` : undefined;
+}
 
 /**
  * Public: the real fixtures the agent is watching (auth'd TxLINE feed).
@@ -189,12 +204,17 @@ async function listFixtures(
 		const list = Array.isArray(body) ? (body as Record<string, unknown>[]) : [];
 		const now = Date.now();
 		return list
-			.map((f) => ({
-				fixtureId: String(f.FixtureId ?? f.fixtureId ?? ""),
-				p1: String(f.Participant1 ?? f.participant1 ?? ""),
-				p2: String(f.Participant2 ?? f.participant2 ?? ""),
-				start: Number(f.StartTime ?? f.startTime ?? 0),
-			}))
+			.map((f) => {
+				const p1 = String(f.Participant1 ?? f.participant1 ?? "");
+				const p2 = String(f.Participant2 ?? f.participant2 ?? "");
+				return {
+					fixtureId: String(f.FixtureId ?? f.fixtureId ?? ""),
+					p1, p2,
+					start: Number(f.StartTime ?? f.startTime ?? 0),
+					flag1: flagUrl(p1),
+					flag2: flagUrl(p2),
+				};
+			})
 			.filter((f) => f.fixtureId)
 			// In-play (started but recent) first, then soonest upcoming
 			.sort((a, b) => Math.abs(a.start - now) - Math.abs(b.start - now));
@@ -245,14 +265,24 @@ export async function fetchScoreSnapshot(
  * TxLINE wire format: TG users reported PascalCase keys in live payloads
  * while docs show camelCase. We read both to be safe.
  */
-function normalizeTxline(body: unknown, sourceUrl: string): MarketOdds {
+function normalizeTxline(body: unknown, sourceUrl: string, p1?: string, p2?: string): MarketOdds {
 	// Snapshot endpoints return an ARRAY of odds elements (reference:
 	// subscription_free_tier.ts reads response.data[0]). Fixture-specific calls
 	// may return a single object. Handle both; an empty array means no live odds
 	// in the current interval, which is an honest "no odds" — not a parse failure.
 	if (Array.isArray(body)) {
-		for (const el of body) {
-			const parsed = normalizeElement(el);
+		// Prefer full-match 1X2 (SuperOddsType=1X2_PARTICIPANT_RESULT, no MarketPeriod)
+		const sorted = [...body].sort((a, b) => {
+			const aType = String((a as Record<string,unknown>).SuperOddsType ?? "");
+			const bType = String((b as Record<string,unknown>).SuperOddsType ?? "");
+			const aPeriod = (a as Record<string,unknown>).MarketPeriod;
+			const bPeriod = (b as Record<string,unknown>).MarketPeriod;
+			const aScore = aType === "1X2_PARTICIPANT_RESULT" && !aPeriod ? 0 : 1;
+			const bScore = bType === "1X2_PARTICIPANT_RESULT" && !bPeriod ? 0 : 1;
+			return aScore - bScore;
+		});
+		for (const el of sorted) {
+			const parsed = normalizeElement(el, p1, p2);
 			if (parsed) return parsed;
 		}
 		throw new Error(
@@ -264,7 +294,7 @@ function normalizeTxline(body: unknown, sourceUrl: string): MarketOdds {
 		);
 	}
 
-	const parsed = normalizeElement(body);
+	const parsed = normalizeElement(body, p1, p2);
 	if (parsed) return parsed;
 	throw new Error(
 		`TxLINE response from ${sourceUrl} contained no usable odds. Body keys: ${
@@ -278,14 +308,17 @@ function normalizeTxline(body: unknown, sourceUrl: string): MarketOdds {
  * Returns null (rather than throwing) when the element carries no usable odds,
  * so the array path can skip empties and try the next element.
  */
-function normalizeElement(raw: unknown): MarketOdds | null {
+function normalizeElement(raw: unknown, p1Hint?: string, p2Hint?: string): MarketOdds | null {
 	if (!raw || typeof raw !== "object") return null;
 	const body = raw as Record<string, unknown>;
 
+	// Build match name from hints (fixture data) or element fields
+	const matchFromHints = p1Hint && p2Hint ? `${p1Hint} vs ${p2Hint}` : null;
 	const match = String(
 		body.Match ?? body.match ??
 		body.Event ?? body.event ??
 		body.Name ?? body.name ??
+		matchFromHints ??
 		"Unknown match",
 	);
 	const matchId = String(
@@ -307,6 +340,33 @@ function normalizeElement(raw: unknown): MarketOdds | null {
 		for (const [k, v] of Object.entries(oddsObj as Record<string, unknown>)) {
 			const n = Number(v);
 			if (Number.isFinite(n) && n > 1) odds[k] = n;
+		}
+	}
+
+	// TxLINE StablePrice wire format: PriceNames[] + Prices[] (integers, divide by 1000)
+	// Only use 1X2 full-match market (SuperOddsType=1X2_PARTICIPANT_RESULT, no half period)
+	if (Object.keys(odds).length === 0) {
+		const superOddsType = String(body.SuperOddsType ?? body.superOddsType ?? "");
+		const marketPeriod = body.MarketPeriod ?? body.marketPeriod;
+		const is1x2FullMatch = superOddsType === "1X2_PARTICIPANT_RESULT" && !marketPeriod;
+		const is1x2 = superOddsType.includes("1X2") || superOddsType === "";
+		if (is1x2FullMatch || (is1x2 && Object.keys(odds).length === 0)) {
+			const priceNames = body.PriceNames ?? body.priceNames;
+			const prices = body.Prices ?? body.prices;
+			if (Array.isArray(priceNames) && Array.isArray(prices)) {
+				// Use real team names if available, otherwise generic labels
+				const labelMap: Record<string, string> = {
+					part1: p1Hint ?? "Home",
+					draw: "Draw",
+					part2: p2Hint ?? "Away",
+				};
+				for (let i = 0; i < priceNames.length; i++) {
+					const rawName = String(priceNames[i] ?? "");
+					const name = labelMap[rawName] ?? rawName;
+					const n = Number(prices[i]) / 1000;
+					if (name && Number.isFinite(n) && n > 1) odds[name] = n;
+				}
+			}
 		}
 	}
 
@@ -335,8 +395,8 @@ function normalizeElement(raw: unknown): MarketOdds | null {
 
 	const p1Raw = body.Participant1 ?? body.participant1 ?? body.HomeTeam ?? body.homeTeam;
 	const p2Raw = body.Participant2 ?? body.participant2 ?? body.AwayTeam ?? body.awayTeam;
-	const p1 = p1Raw ? String(p1Raw) : undefined;
-	const p2 = p2Raw ? String(p2Raw) : undefined;
+	const p1 = p1Raw ? String(p1Raw) : p1Hint;
+	const p2 = p2Raw ? String(p2Raw) : p2Hint;
 
 	return {
 		matchId,

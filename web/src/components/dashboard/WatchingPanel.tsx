@@ -61,29 +61,30 @@ export default function WatchingPanel() {
             {list.map((f) => (
               <div
                 key={f.fixtureId}
-                className="flex items-center justify-between gap-2 rounded-medium border border-default-200 bg-content2 px-3 py-1.5"
+                className="flex items-center justify-between gap-2 rounded-medium border border-default-200 bg-content2 px-3 py-2"
               >
                 <div className="flex min-w-0 items-center gap-2">
                   {f.live ? (
-                    <Chip color="success" radius="sm" size="sm" variant="flat">
-                      LIVE
-                    </Chip>
+                    <Chip color="success" radius="sm" size="sm" variant="flat">LIVE</Chip>
                   ) : (
                     <Icon className="shrink-0 text-default-400" icon="solar:clock-circle-linear" width={16} />
                   )}
-                  <p className="truncate text-small text-foreground">
-                    {f.p1} vs {f.p2}
-                  </p>
-                  {f.bettable ? (
-                    <Chip
-                      classNames={{ content: "text-[0.6rem] font-medium" }}
-                      radius="sm"
-                      size="sm"
-                      variant="flat"
-                    >
+                  <div className="flex min-w-0 items-center gap-1.5">
+                    {f.flag1 && (
+                      <img src={f.flag1} alt={f.p1} width={20} height={14} className="shrink-0 rounded-sm object-cover" />
+                    )}
+                    <span className="truncate text-small text-foreground">{f.p1}</span>
+                    <span className="text-tiny text-default-400">vs</span>
+                    {f.flag2 && (
+                      <img src={f.flag2} alt={f.p2} width={20} height={14} className="shrink-0 rounded-sm object-cover" />
+                    )}
+                    <span className="truncate text-small text-foreground">{f.p2}</span>
+                  </div>
+                  {f.bettable && (
+                    <Chip classNames={{ content: "text-[0.6rem] font-medium" }} radius="sm" size="sm" variant="flat">
                       bettable
                     </Chip>
-                  ) : null}
+                  )}
                 </div>
                 <p className="shrink-0 text-tiny tabular-nums text-default-500">
                   {f.live ? "in play" : kickoffLabel(f.start)}
