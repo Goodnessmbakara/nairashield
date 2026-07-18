@@ -3,7 +3,6 @@ import {
 	PublicKey,
 	Keypair,
 	Transaction,
-	sendAndConfirmTransaction,
 } from "@solana/web3.js";
 import {
 	getAssociatedTokenAddress,
@@ -121,9 +120,16 @@ async function sweepWallet(
 			setTimeout(() => reject(new Error("Sweep confirmation timed out")), SWEEP_TIMEOUT_MS),
 		);
 		
-		// Use poolKeypair as fee payer (first signer), depositKeypair authorizes transfer
+		const { blockhash, lastValidBlockHeight } = await connection.getLatestBlockhash("confirmed");
+		sweepTx.recentBlockhash = blockhash;
+		sweepTx.feePayer = poolKeypair.publicKey;
+		sweepTx.sign(poolKeypair, depositKeypair);
+
 		const sweepSig = await Promise.race([
-			sendAndConfirmTransaction(connection, sweepTx, [poolKeypair, depositKeypair], { commitment: "confirmed" }),
+			connection.sendRawTransaction(sweepTx.serialize()).then(async (txid) => {
+				await connection.confirmTransaction({ signature: txid, blockhash, lastValidBlockHeight }, "confirmed");
+				return txid;
+			}),
 			timeoutPromise,
 		]);
 
