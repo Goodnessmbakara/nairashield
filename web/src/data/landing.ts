@@ -32,7 +32,7 @@ export const agitation = {
 
 export const solution = {
   title: "NairaShield keeps capital earning, then deploys only when the math clears",
-  body: "Fund once. Idle balance sits in Kamino yield. An agent watches live sports markets on BetDEX and only moves capital when expected upside beats the yield you give up. After settlement, funds go back to earning.",
+  body: "Fund once. Idle balance sits in Kamino yield. An agent watches live TxLINE odds and only moves capital into Jupiter Predict markets when expected upside beats the yield you give up. After settlement, funds go back to earning.",
 };
 
 export type Step = {
@@ -80,7 +80,7 @@ export const faqs: Faq[] = [
   {
     title: "Is this arbitrage?",
     content:
-      "No. Arbitrage needs the same event priced differently on two venues. This agent places careful offers on BetDEX when the price looks better than continuing to earn yield.",
+      "No. Arbitrage needs the same event priced differently on two venues. This agent takes positions on Jupiter Predict when the live TxLINE price says the upside beats continuing to earn yield.",
   },
   {
     title: "When does it place a bet?",
@@ -103,6 +103,5 @@ export const builtOn = [
   { name: "Solana", src: "/brands/solana.svg" },
   { name: "USDC", src: "/brands/usdc.svg" },
   { name: "Kamino", src: "/brands/kamino.svg" },
-  { name: "BetDEX", src: "/brands/betdex.svg" },
   { name: "Cloudflare", src: "/brands/cloudflare.svg" },
 ];

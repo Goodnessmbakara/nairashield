@@ -137,7 +137,7 @@ export default function Dashboard() {
 
   const statusBanner =
     latest?.decision?.reason &&
-    /TxLINE|Kamino|BetDEX|not configured|not wired/i.test(latest.decision.reason) ? (
+    /TxLINE|Kamino|Jupiter|not configured|not wired/i.test(latest.decision.reason) ? (
       <GateCard
         description={latest.decision.reason}
         icon="solar:plug-circle-linear"
