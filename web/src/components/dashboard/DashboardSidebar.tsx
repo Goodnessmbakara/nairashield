@@ -66,14 +66,14 @@ const DashboardSidebar = React.memo(
           )}
         >
           <a
-            aria-label="Edgeora home"
+            aria-label="Retegol home"
             className={cn("flex min-w-0 items-center gap-2", isCompact && "justify-center")}
             href="/"
           >
             <BrandMark size="sm" />
             {!isCompact && (
               <span className="font-display truncate text-small font-bold tracking-tight text-foreground">
-                Edgeora
+                Retegol
               </span>
             )}
           </a>

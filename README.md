@@ -2,7 +2,7 @@
 
 An autonomous AI-driven sports market-making agent on Solana. Users deposit USDC into a shared pool; the agent earns yield via Kamino Finance and places maker orders on Jupiter Predict using real-time odds from TxLINE.
 
-**Live:** https://edgeora.pages.dev — **API:** https://edgeora-bot.zanbuilds.workers.dev
+**Live:** https://retegol.pages.dev — **API:** https://retegol-bot.zanbuilds.workers.dev
 
 Built for the **TxODDS Superteam Earn Hackathon** (Trading Tools and Agents Track).
 

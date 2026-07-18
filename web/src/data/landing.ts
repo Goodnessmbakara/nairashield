@@ -31,7 +31,7 @@ export const agitation = {
 };
 
 export const solution = {
-  title: "Edgeora keeps capital earning, then deploys only when the math clears",
+  title: "Retegol keeps capital earning, then deploys only when the math clears",
   body: "Fund once. Idle balance sits in Kamino yield. An agent watches live TxLINE odds and only moves capital into Jupiter Predict markets when expected upside beats the yield you give up. After settlement, funds go back to earning.",
 };
 
@@ -88,7 +88,7 @@ export const faqs: Faq[] = [
   {
     title: "What problem does this solve?",
     content:
-      "Stablecoins parked between sports plays often earn nothing. Edgeora keeps that capital in yield and only deploys it when a live market opportunity clears the cost of leaving yield.",
+      "Stablecoins parked between sports plays often earn nothing. Retegol keeps that capital in yield and only deploys it when a live market opportunity clears the cost of leaving yield.",
   },
   {
     title: "Is this arbitrage?",

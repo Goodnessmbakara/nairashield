@@ -185,7 +185,7 @@ const DecisionCard = React.forwardRef<
               base: "border border-default-200 bg-content2",
               name: "text-small font-semibold text-default-600",
             }}
-            name="E"
+            name="R"
             radius="lg"
             size="md"
           />

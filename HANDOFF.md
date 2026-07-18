@@ -385,7 +385,7 @@ npx wrangler secret put FOSSAPAY_WEBHOOK_SECRET
 npx wrangler deploy
 
 # Point FossaPay dashboard webhook to:
-#   https://edgeora-bot.zanbuilds.workers.dev/webhooks/fossapay
+#   https://retegol-bot.zanbuilds.workers.dev/webhooks/fossapay
 # (events: deposit.completed at minimum)
 
 # Create KV namespace (if not done)

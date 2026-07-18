@@ -9,7 +9,7 @@ type BrandMarkProps = {
 };
 
 /**
- * Edgeora mark: geometric E monogram (emerald favicon) + optional raster.
+ * Retegol mark: geometric R monogram (emerald favicon).
  */
 const BrandMark = React.forwardRef<HTMLSpanElement, BrandMarkProps>(
   ({ className, size = "sm" }, ref) => {
@@ -19,7 +19,7 @@ const BrandMark = React.forwardRef<HTMLSpanElement, BrandMarkProps>(
     return (
       <span
         ref={ref}
-        aria-label="Edgeora"
+        aria-label="Retegol"
         className={cn(
           "inline-flex shrink-0 items-center justify-center overflow-hidden rounded-xl",
           dim,

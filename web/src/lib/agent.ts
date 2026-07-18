@@ -1,4 +1,4 @@
-// Real client for the Edgeora Cloudflare Worker.
+// Real client for the Retegol Cloudflare Worker.
 // Agent ticks require Google auth (Bearer session from /auth/exchange).
 
 import { AGENT_URL, authHeaders, getToken, isAgentConfigured } from "./auth";

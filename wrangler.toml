@@ -1,4 +1,4 @@
-name = "edgeora-bot"
+name = "retegol-bot"
 main = "src/index.ts"
 compatibility_date = "2024-09-23"
 compatibility_flags = ["nodejs_compat"]
@@ -22,8 +22,8 @@ preview_id = "dcb1020ab5f84f8381b7180159ca0fed"
 crons = ["* * * * *"]
 
 [vars]
-WORKER_URL = "https://edgeora-bot.zanbuilds.workers.dev"
-FRONTEND_URL = "https://edgeora.pages.dev"
+WORKER_URL = "https://retegol-bot.zanbuilds.workers.dev"
+FRONTEND_URL = "https://retegol.pages.dev"
 # Agent policy (yield, size, margins, horizons) is in src/agent/config.ts
 
 # Secrets (set via `wrangler secret put`):

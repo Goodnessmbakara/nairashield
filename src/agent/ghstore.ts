@@ -33,7 +33,7 @@ function headers(env: Env): Record<string, string> {
 	return {
 		authorization: `Bearer ${env.GH_TOKEN}`,
 		accept: "application/vnd.github+json",
-		"user-agent": "edgeora-agent",
+		"user-agent": "retegol-agent",
 		"x-github-api-version": "2022-11-28",
 	};
 }

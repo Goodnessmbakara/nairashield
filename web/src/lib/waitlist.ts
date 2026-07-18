@@ -1,4 +1,4 @@
-const STORAGE_KEY = "edgeora.waitlist.v1";
+const STORAGE_KEY = "retegol.waitlist.v1";
 
 export type WaitlistEntry = {
   email: string;
@@ -60,7 +60,7 @@ export async function submitWaitlistRemote(email: string): Promise<void> {
     await fetch(url, {
       method: "POST",
       headers: { "Content-Type": "application/json", Accept: "application/json" },
-      body: JSON.stringify({ email: email.trim().toLowerCase(), source: "edgeora-web" }),
+      body: JSON.stringify({ email: email.trim().toLowerCase(), source: "retegol-web" }),
     });
   } catch {
     // offline / CORS - local list is source of truth for the demo

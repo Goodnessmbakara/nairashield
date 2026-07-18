@@ -20,7 +20,7 @@ import { nav } from "../../data/landing";
 import BrandMark from "../ui/BrandMark";
 
 /**
- * Rectangular floating bar: Edgeora mark + links + Sign in.
+ * Rectangular floating bar: Retegol mark + links + Sign in.
  */
 const SiteNavbar = React.forwardRef<HTMLElement, NavbarProps>(
   ({ classNames = {}, ...props }, ref) => {

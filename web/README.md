@@ -1,3 +1,3 @@
-# Edgeora Web
+# Retegol Web
 
-Marketing site + dashboard for Edgeora (repo folder may still be named nairashield).
+Marketing site + dashboard for Retegol (repo folder may still be named nairashield).

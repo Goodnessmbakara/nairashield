@@ -3,8 +3,8 @@
 **Track:** Trading Tools and Agents (primary) · Prediction Markets and Settlement (secondary)
 
 ## Links
-- **Live app:** https://edgeora.pages.dev
-- **Agent API:** https://edgeora-bot.zanbuilds.workers.dev (`/health`)
+- **Live app:** https://retegol.pages.dev
+- **Agent API:** https://retegol-bot.zanbuilds.workers.dev (`/health`)
 - **Public repo:** https://github.com/Goodnessmbakara/nairashield
 - **Demo video:** _add Loom/YouTube link after recording_
 

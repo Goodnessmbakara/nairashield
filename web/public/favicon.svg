@@ -1,10 +1,10 @@
 <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 128 128">
   <defs>
-    <linearGradient id="e" x1="16" y1="12" x2="112" y2="116" gradientUnits="userSpaceOnUse">
+    <linearGradient id="r" x1="16" y1="12" x2="112" y2="116" gradientUnits="userSpaceOnUse">
       <stop stop-color="#0B7A4B"/>
       <stop offset="1" stop-color="#34D399"/>
     </linearGradient>
   </defs>
-  <!-- Geometric E monogram for Edgeora -->
-  <path fill="url(#e)" d="M30 22c0-3.3 2.7-6 6-6h56c3.3 0 6 2.7 6 6v10c0 3.3-2.7 6-6 6H52v16h32c3.3 0 6 2.7 6 6v10c0 3.3-2.7 6-6 6H52v16h40c3.3 0 6 2.7 6 6v10c0 3.3-2.7 6-6 6H36c-3.3 0-6-2.7-6-6V22Z"/>
+  <!-- Geometric R monogram for Retegol -->
+  <path fill="url(#r)" d="M30 22c0-3.3 2.7-6 6-6h36c16.6 0 30 13.4 30 30 0 11.6-6.6 21.7-16.2 26.7L106 100c1.8 2.7.9 6.4-2 7.8l-8.6 4.2c-2.9 1.4-6.4.3-7.9-2.5L66.2 78H52v28c0 3.3-2.7 6-6 6H36c-3.3 0-6-2.7-6-6V22Zm22 40h20c7.7 0 14-6.3 14-14s-6.3-14-14-14H52v28Z"/>
 </svg>

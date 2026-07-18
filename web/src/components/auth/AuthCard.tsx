@@ -29,7 +29,7 @@ const AuthCard = React.forwardRef<HTMLDivElement, AuthCardProps>(
   (
     {
       className,
-      title = "Join Edgeora",
+      title = "Join Retegol",
       subtitle = "Sign in to open your dashboard and run the agent",
       returnTo,
       error: externalError,
