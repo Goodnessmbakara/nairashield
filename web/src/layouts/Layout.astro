@@ -5,8 +5,10 @@ interface Props {
   title?: string;
   /** Preload hero atmosphere image (landing only) */
   preloadHeroBg?: boolean;
+  /** Legal disclaimer footer — landing page only, never inside the app */
+  legalFooter?: boolean;
 }
-const { title = "NairaShield", preloadHeroBg = false } = Astro.props;
+const { title = "NairaShield", preloadHeroBg = false, legalFooter = false } = Astro.props;
 ---
 
 <!doctype html>
@@ -36,8 +38,8 @@ const { title = "NairaShield", preloadHeroBg = false } = Astro.props;
         <slot />
       </main>
       
-      <!-- Hackathon Legal Compliance Disclaimer Footer -->
-      <footer class="mt-auto border-t border-divider bg-content2 py-8 text-center text-xs text-default-500">
+      <!-- Hackathon Legal Compliance Disclaimer Footer (landing only) -->
+      {legalFooter && <footer class="mt-auto border-t border-divider bg-content2 py-8 text-center text-xs text-default-500">
         <div class="container mx-auto px-4 max-w-4xl space-y-4">
           <p class="font-semibold text-foreground/80">⚖️ Legal & Compliance Disclaimer</p>
           <p>
@@ -50,7 +52,7 @@ const { title = "NairaShield", preloadHeroBg = false } = Astro.props;
             Users and developers deploying this software are solely responsible for ensuring their use complies with all applicable laws and regulations in their jurisdiction, including but not limited to gambling, gaming, financial, consumer protection, and securities laws. TxLINE and Superteam Earn do not endorse or authorize illegal betting, wagering, or any illicit financial activity.
           </p>
         </div>
-      </footer>
+      </footer>}
     </div>
   </body>
 </html>
