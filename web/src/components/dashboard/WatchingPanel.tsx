@@ -44,10 +44,10 @@ export default function WatchingPanel() {
           <div className="flex rounded-medium border border-default-100 bg-default-50 p-1.5">
             <Icon className="text-default-500" icon="solar:eye-linear" width={16} />
           </div>
-          <h2 className="font-display text-medium font-semibold text-foreground">
-            Watching
-          </h2>
-          <span className="text-tiny text-default-400">live TxLINE fixtures</span>
+          <div>
+            <h2 className="font-display text-medium font-semibold text-foreground">Watching</h2>
+            <p className="text-tiny text-default-400">live TxLINE fixtures</p>
+          </div>
         </div>
 
         {fixtures === null ? (

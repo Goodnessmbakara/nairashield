@@ -22,7 +22,7 @@ import DashboardSidebar from "./dashboard/DashboardSidebar";
 import SidebarDrawer from "./dashboard/SidebarDrawer";
 import LogoutConfirmModal from "./dashboard/LogoutConfirmModal";
 import { dashboardNav, type DashboardView } from "./dashboard/sidebar-items";
-import { heldSeriesFromTicks, checksSeriesFromTicks } from "../lib/chart-from-ticks";
+import { heldSeriesFromTicks, checksSeriesFromTicks, estimatedEarned } from "../lib/chart-from-ticks";
 import { useAgent } from "../hooks/useAgent";
 import { useAuth } from "../hooks/useAuth";
 
@@ -94,6 +94,8 @@ export default function Dashboard() {
   const heldSeries = heldSeriesFromTicks(ticks);
   const checkSeries = checksSeriesFromTicks(ticks);
   const chartData = heldSeries.length >= 2 ? heldSeries : checkSeries;
+  const earned = estimatedEarned(ticks);
+  const latestBalance = ticks.find(t => typeof t.yield?.balanceUsdc === "number")?.yield?.balanceUsdc;
   const latest = ticks[0];
   const latestOdds =
     latest && (latest.decision.team || typeof latest.decision.spread === "number")
@@ -164,15 +166,16 @@ export default function Dashboard() {
         value={observed > 0 ? String(trades) : "-"}
       />
       <StatCard
-        hint="stayed earning"
+        hint={latestBalance ? `$${latestBalance.toFixed(2)} in Kamino` : "stayed earning"}
         icon="solar:safe-square-linear"
         share={observed > 0 ? holds / observed : undefined}
         title="Kept earning"
-        value={observed > 0 ? String(holds) : "-"}
+        value={earned !== null ? `+$${earned < 0.001 ? earned.toFixed(6) : earned.toFixed(4)}` : observed > 0 ? String(holds) : "-"}
       />
     </dl>
   );
 
+  const usingUsdcChart = heldSeries.length >= 2;
   const activityPanel = (
     <LazyActivityChart
       change={chartData.length >= 2 ? "this session" : undefined}
@@ -184,8 +187,12 @@ export default function Dashboard() {
           : "No live graph yet. Run checks when the agent is connected."
       }
       height={260}
-      title="Kept earning over time"
-      value={chartData.length >= 2 ? String(holds) : "-"}
+      title={usingUsdcChart ? "Kamino balance over time" : "Kept earning over time"}
+      value={
+        usingUsdcChart && latestBalance !== undefined
+          ? `$${latestBalance.toFixed(2)}`
+          : chartData.length >= 2 ? String(holds) : "-"
+      }
     />
   );
 
