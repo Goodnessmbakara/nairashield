@@ -2,7 +2,7 @@
 
 **Record during a live match** (France–England Jul 18 21:00 UTC or the final
 Jul 19 ~19:00 UTC) so real odds are on screen. Tabs pre-opened:
-dashboard (nairashield.pages.dev, signed in), Solscan on the wallet, repo.
+dashboard (edgeora.pages.dev, signed in), Solscan on the wallet, repo.
 
 ---
 

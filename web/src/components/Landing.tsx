@@ -7,7 +7,7 @@ import Hero from "./landing/Hero";
 import BuiltOnMarquee from "./landing/BuiltOnMarquee";
 import Agitation from "./landing/Agitation";
 import Solution from "./landing/Solution";
-import BentoGrid from "./landing/BentoGrid";
+import AgentFirstRun from "./landing/AgentFirstRun";
 import Faq from "./landing/Faq";
 import NeedHelp from "./landing/NeedHelp";
 import SiteFooter from "./landing/SiteFooter";
@@ -22,7 +22,7 @@ export default function Landing() {
       <div className="relative flex min-h-dvh w-full flex-col overflow-x-hidden bg-background">
         <div className="hero-atmosphere w-full">
           <div className="hero-atmosphere__media" aria-hidden="true">
-            <img alt="" decoding="async" fetchpriority="high" src="/bg.jpg" />
+            <img alt="" decoding="async" fetchPriority="high" src="/bg.jpg" />
           </div>
           <div className="hero-atmosphere__veil" aria-hidden="true" />
 
@@ -36,7 +36,7 @@ export default function Landing() {
         <main className="page-surface flex w-full flex-col items-center">
           <Agitation />
           <Solution />
-          <BentoGrid />
+          <AgentFirstRun />
           <Faq />
           <NeedHelp />
         </main>

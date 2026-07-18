@@ -31,7 +31,7 @@ export const agitation = {
 };
 
 export const solution = {
-  title: "NairaShield keeps capital earning, then deploys only when the math clears",
+  title: "Edgeora keeps capital earning, then deploys only when the math clears",
   body: "Fund once. Idle balance sits in Kamino yield. An agent watches live TxLINE odds and only moves capital into Jupiter Predict markets when expected upside beats the yield you give up. After settlement, funds go back to earning.",
 };
 
@@ -39,6 +39,9 @@ export type Step = {
   step: string;
   title: string;
   body: string;
+  /** What the product UI shows at this stage (first-run depiction). */
+  uiCaption: string;
+  panel: "deposit" | "yield" | "watching" | "decision" | "settle";
 };
 
 export const steps: Step[] = [
@@ -46,26 +49,36 @@ export const steps: Step[] = [
     step: "01",
     title: "Fund the agent",
     body: "Connect and deposit USDC so the agent can hold and move capital on Solana.",
+    uiCaption: "Your Solana USDC deposit address appears in Portfolio.",
+    panel: "deposit",
   },
   {
     step: "02",
     title: "Earn by default",
     body: "While nothing is worth trading, balance stays in Kamino and keeps accruing yield.",
+    uiCaption: "Idle capital shows as Kept earning with live Kamino APY.",
+    panel: "yield",
   },
   {
     step: "03",
     title: "Watch live markets",
     body: "The agent reads live sports market data and evaluates offers against idle yield.",
+    uiCaption: "Watching lists upcoming fixtures from TxLINE — no babysitting required.",
+    panel: "watching",
   },
   {
     step: "04",
     title: "Act only when worth it",
     body: "If expected upside does not beat the yield cost of leaving the vault, it holds.",
+    uiCaption: "Agent activity shows one status: Keep earning or Take opportunity.",
+    panel: "decision",
   },
   {
     step: "05",
     title: "Return to earning",
     body: "When a position settles, funds route back to yield without manual babysitting.",
+    uiCaption: "After a trade settles, capital goes back to Kamino automatically.",
+    panel: "settle",
   },
 ];
 
@@ -75,7 +88,7 @@ export const faqs: Faq[] = [
   {
     title: "What problem does this solve?",
     content:
-      "Stablecoins parked between sports plays often earn nothing. NairaShield keeps that capital in yield and only deploys it when a live market opportunity clears the cost of leaving yield.",
+      "Stablecoins parked between sports plays often earn nothing. Edgeora keeps that capital in yield and only deploys it when a live market opportunity clears the cost of leaving yield.",
   },
   {
     title: "Is this arbitrage?",

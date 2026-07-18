@@ -57,7 +57,7 @@ export default function SiteFooter() {
             <div className="flex items-center gap-2.5">
               <BrandMark size="sm" />
               <span className="font-display text-small font-semibold tracking-tight text-foreground">
-                NairaShield
+                Edgeora
               </span>
             </div>
             <p className="max-w-xs text-small leading-6 text-default-500">
@@ -73,7 +73,7 @@ export default function SiteFooter() {
 
         <div className="mt-12 flex flex-col gap-2 border-t border-default-100 pt-6 sm:flex-row sm:items-center sm:justify-between">
           <p className="text-tiny text-default-400">
-            © {new Date().getFullYear()} NairaShield
+            © {new Date().getFullYear()} Edgeora
           </p>
           <p className="text-tiny text-default-300">Not financial advice</p>
         </div>

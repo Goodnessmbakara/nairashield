@@ -44,10 +44,10 @@ jobs:
         working-directory: web
         env:
           # Astro inlines PUBLIC_* vars at build time; web/.env is gitignored
-          PUBLIC_AGENT_URL: https://nairashield-bot.zanbuilds.workers.dev
+          PUBLIC_AGENT_URL: https://edgeora-bot.zanbuilds.workers.dev
       - uses: cloudflare/wrangler-action@v3
         with:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           workingDirectory: web
-          command: pages deploy dist --project-name=nairashield
+          command: pages deploy dist --project-name=edgeora

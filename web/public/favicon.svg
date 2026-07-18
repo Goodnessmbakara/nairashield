@@ -1,10 +1,10 @@
 <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 128 128">
   <defs>
-    <linearGradient id="n" x1="16" y1="12" x2="112" y2="116" gradientUnits="userSpaceOnUse">
+    <linearGradient id="e" x1="16" y1="12" x2="112" y2="116" gradientUnits="userSpaceOnUse">
       <stop stop-color="#0B7A4B"/>
       <stop offset="1" stop-color="#34D399"/>
     </linearGradient>
   </defs>
-  <!-- Geometric N monogram: bold uprights + diagonal, Astro-like simplicity, emerald not B/W -->
-  <path fill="url(#n)" d="M28 22c0-3.3 2.7-6 6-6h12c2.2 0 4.2 1.2 5.2 3.1L84 88.2V28c0-3.3 2.7-6 6-6h10c3.3 0 6 2.7 6 6v78c0 3.3-2.7 6-6 6H88c-2.2 0-4.2-1.2-5.2-3.1L50 39.8V106c0 3.3-2.7 6-6 6H34c-3.3 0-6-2.7-6-6V22Z"/>
+  <!-- Geometric E monogram for Edgeora -->
+  <path fill="url(#e)" d="M30 22c0-3.3 2.7-6 6-6h56c3.3 0 6 2.7 6 6v10c0 3.3-2.7 6-6 6H52v16h32c3.3 0 6 2.7 6 6v10c0 3.3-2.7 6-6 6H52v16h40c3.3 0 6 2.7 6 6v10c0 3.3-2.7 6-6 6H36c-3.3 0-6-2.7-6-6V22Z"/>
 </svg>

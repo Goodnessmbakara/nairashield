@@ -1,4 +1,4 @@
-// Google auth client against the NairaShield Cloudflare Worker.
+// Google auth client against the Edgeora Cloudflare Worker.
 // Token is stored client-side for cross-origin local dev (worker ≠ frontend origin).
 
 export type AuthUser = {

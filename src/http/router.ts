@@ -37,7 +37,7 @@ export async function handleFetch(request: Request, env: Env): Promise<Response>
 			const status = await getAgentStatus(env);
 			return json({
 				ok: true,
-				service: "nairashield-bot",
+				service: "edgeora-bot",
 				auth: googleConfigured(env) ? "google" : "not_configured",
 				agent: status,
 				time: new Date().toISOString(),
@@ -45,8 +45,8 @@ export async function handleFetch(request: Request, env: Env): Promise<Response>
 		}
 		return json({
 			ok: true,
-			service: "nairashield-bot",
-			message: "NairaShield agent API",
+			service: "edgeora-bot",
+			message: "Edgeora agent API",
 			routes: {
 				health: "GET /health",
 				googleSignIn: "GET /auth/google?return_to=<frontend_url>",

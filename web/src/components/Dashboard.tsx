@@ -14,6 +14,7 @@ import { Icon } from "@iconify/react";
 import DecisionFeed from "./DecisionFeed";
 import PortfolioView from "./dashboard/PortfolioView";
 import WatchingPanel from "./dashboard/WatchingPanel";
+import FirstRunChecklist from "./dashboard/FirstRunChecklist";
 import StatCard from "./ui/StatCard";
 import GateCard from "./ui/GateCard";
 import LazyActivityChart from "./ui/LazyActivityChart";
@@ -388,6 +389,7 @@ export default function Dashboard() {
 
               {view === "overview" && (
                 <div className="flex flex-col gap-4">
+                  <FirstRunChecklist hasTicks={observed > 0} onNavigate={changeView} />
                   {kpis}
                   <div className="grid grid-cols-1 gap-4 lg:grid-cols-5 lg:gap-5">
                     <div className="lg:col-span-3">{activityPanel}</div>
