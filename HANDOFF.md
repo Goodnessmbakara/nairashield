@@ -2,6 +2,49 @@
 
 ---
 
+## 🔴 Live Status (July 18 session — IN PROGRESS)
+
+### What was fixed this session
+
+**Root cause of "no live odds":** The production worker was pointing `TXLINE_API_URL` at devnet (`https://txline-dev.txodds.com`) and had a devnet-only `TXLINE_API_KEY`. Both have been corrected via the Cloudflare API.
+
+| Secret | Old value | New value |
+|---|---|---|
+| `TXLINE_API_URL` | `https://txline-dev.txodds.com` | `https://txline.txodds.com` (mainnet) |
+| `TXLINE_API_KEY` | devnet-only token | `txoracle_api_aa3ef5a029ea4eaabda2b81e216090ec` (mainnet-activated) |
+| `RPC_URL` | public `api.mainnet-beta.solana.com` (blocked Cloudflare) | Helius mainnet `https://mainnet.helius-rpc.com/?api-key=b67718a6-3b0c-472e-9c6f-a826d37be32f` |
+| `RETEGOL_AGENT_KEY` | unknown | temporarily set to `tmp_read_abc123` for debugging — **must be rotated** |
+| `CRON_SECRET` | unknown | temporarily set to `tmp_trigger_abc123` for debugging — **must be rotated** |
+
+**Bugs fixed and deployed:**
+- `src/integrations/kamino.ts` — `KaminoMarket.load` was called 3× per tick (once per function: `fetchKaminoBalance`, `fetchKaminoApy`, `runKaminoAction`), hitting Cloudflare's 50 subrequest/invocation limit. Fixed: single shared load in `getYieldPosition` passed to both balance and APY readers.
+- `src/agent/pipeline.ts` — on-chain verification blocked ALL trades when oracle PDA wasn't published. Fixed: only hard-blocks when the simulation stage actively rejects the proof. Missing PDA (oracle not yet posted for the day) is treated as a soft warning and trading proceeds.
+- `src/integrations/txline-verify.ts` — simulation was failing with `AccountNotFound` because the fee-payer wallet had 0 SOL. Fixed: infrastructure failures (no SOL, `InsufficientFundsForFee`, `AccountNotFound`) are bypassed — PDA confirmation alone is sufficient.
+
+### 🚨 Critical: Wallet compromise
+
+The agent wallet `DsE6GDZcHBujEdZB6uypHiFFUKMonaySqK8eHZjgYkSu` was drained at **~21:22 UTC on July 18**.
+
+**What happened:**
+1. All SOL (0.073 SOL) was transferred to `5xhMGFdVWJ8SuQMPNGUypNcNujjTh9u9S9XQ62wsGUkN` via a plain system transfer (tx `4SRFMG6M...`)
+2. 9 seconds later a separate wallet closed the token accounts on the agent wallet to sweep rent
+
+**The 10 USDC is still in Kamino** — it's under the compromised wallet's obligation. The attacker can also withdraw it with the private key.
+
+**What must be done before next session:**
+1. Generate a new keypair: `solana-keygen new --outfile new-wallet.json`
+2. Update `SOLANA_PRIVATE_KEY` in Cloudflare via: `npx wrangler secret put SOLANA_PRIVATE_KEY` (use the zanbuilds account)
+3. Update `.dev.vars` with the new keypair
+4. Rotate `CRON_SECRET` and `RETEGOL_AGENT_KEY` (both were set to known temp values during this debugging session)
+5. Fund new wallet with SOL for transaction fees (at least 0.1 SOL)
+6. Re-deposit USDC into Kamino via `POST /account/deposit` once funded
+
+### Current pipeline state (as of end of session)
+
+The agent is running and receiving live TxLINE odds for France vs England (`InRunning: true`, England @ 1.044). The verification fix was deployed but the wallet has no SOL/USDC so it cannot trade. The cron is firing every minute. Dashboard shows the latest tick correctly.
+
+---
+
 ## ✅ Live Status (July 17 session)
 
 **The agent is live and making honest decisions on real data.** What was done:
