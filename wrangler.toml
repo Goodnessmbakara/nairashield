@@ -18,6 +18,9 @@ binding = "AGENT_STATE"
 id = "dcb1020ab5f84f8381b7180159ca0fed"
 preview_id = "dcb1020ab5f84f8381b7180159ca0fed"
 
+[limits]
+subrequests = 1000
+
 [triggers]
 crons = ["* * * * *"]
 
