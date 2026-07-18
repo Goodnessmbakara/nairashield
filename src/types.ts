@@ -22,6 +22,8 @@ export interface Env {
 
 	/** Shared secret for the external cron trigger (GET /agent/run?key=…). */
 	CRON_SECRET?: string;
+	/** Fine-grained GitHub token (contents RW on fozagtx/nairashield-state). */
+	GH_TOKEN?: string;
 
 	/** Integration credentials (optional until wired) */
 	TXLINE_API_URL?: string;
