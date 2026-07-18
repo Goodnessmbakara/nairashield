@@ -99,6 +99,26 @@ export type YieldOpResult = {
 };
 
 /**
+ * Fetch the live USDC supply APY from the Kamino reserve on-chain.
+ * Returns null on any failure — caller falls back to AGENT_POLICY.yieldApy.
+ */
+export async function fetchKaminoApy(config: AgentConfig): Promise<number | null> {
+	if (!config.kaminoMarketPubKey || !config.usdcMintPubKey) return null;
+	try {
+		const rpc = createSolanaRpc(config.rpcUrl);
+		const market = await KaminoMarket.load(rpc, address(config.kaminoMarketPubKey), 400);
+		if (!market) return null;
+		const reserves = market.getReservesByMint(address(config.usdcMintPubKey));
+		if (!reserves?.length) return null;
+		const currentSlot = await rpc.getSlot().send();
+		const apy = reserves[0].totalSupplyAPY(currentSlot);
+		return typeof apy === "number" && Number.isFinite(apy) ? apy : null;
+	} catch {
+		return null;
+	}
+}
+
+/**
  * Read yield position: on-chain first (Kamino obligation), fall back to DB snapshot.
  * Never invents a balance.
  */
@@ -111,17 +131,19 @@ export async function getYieldPosition(
 	// Try live on-chain read first when market + mint are configured
 	if (config.kaminoMarketPubKey && config.usdcMintPubKey) {
 		try {
-			const balanceUsdc = await fetchKaminoBalance(config);
+			const [balanceUsdc, liveApy] = await Promise.all([
+				fetchKaminoBalance(config),
+				fetchKaminoApy(config),
+			]);
 			if (balanceUsdc !== null) {
 				const position: YieldPosition = {
 					protocol: "kamino",
 					asset: "USDC",
 					balanceUsdc,
-					apy: config.yieldApy,
+					apy: liveApy ?? config.yieldApy,
 					source: "live",
 					updatedAt: new Date().toISOString(),
 				};
-				// Persist so history ticks have a balance to record
 				await savePosition(env, position);
 				return position;
 			}

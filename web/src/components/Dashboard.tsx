@@ -166,7 +166,7 @@ export default function Dashboard() {
         value={observed > 0 ? String(trades) : "-"}
       />
       <StatCard
-        hint={latestBalance ? `$${latestBalance.toFixed(2)} in Kamino` : "stayed earning"}
+        hint={latestBalance ? `$${latestBalance.toFixed(2)} @ ${((ticks.find(t => typeof t.yield?.apy === "number")?.yield?.apy ?? 0.08) * 100).toFixed(2)}% APY` : "stayed earning"}
         icon="solar:safe-square-linear"
         share={observed > 0 ? holds / observed : undefined}
         title="Kept earning"
