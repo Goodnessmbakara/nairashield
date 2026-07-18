@@ -203,8 +203,8 @@ export async function handleFetch(request: Request, env: Env): Promise<Response>
 				...f,
 				// live = kicked off within the last 3h
 				live: f.start <= now && now - f.start < 3 * 3600 * 1000,
-				// bettable = mapped to a Jupiter market the agent can execute on
-				bettable: Boolean(config.jupiterMarketMap[f.fixtureId]),
+				// bettable = Jupiter auto-discovers all fifwc fixtures; always true when configured
+				bettable: Boolean(config.jupiterApiUrl && config.solanaPrivateKey),
 			})),
 		});
 	}

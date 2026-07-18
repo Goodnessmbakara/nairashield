@@ -333,9 +333,16 @@ function normalizeElement(raw: unknown): MarketOdds | null {
 	const messageId = String(body.MessageId ?? body.messageId ?? "");
 	const ts = Number(body.Ts ?? body.ts ?? body.Timestamp ?? body.timestamp ?? 0);
 
+	const p1Raw = body.Participant1 ?? body.participant1 ?? body.HomeTeam ?? body.homeTeam;
+	const p2Raw = body.Participant2 ?? body.participant2 ?? body.AwayTeam ?? body.awayTeam;
+	const p1 = p1Raw ? String(p1Raw) : undefined;
+	const p2 = p2Raw ? String(p2Raw) : undefined;
+
 	return {
 		matchId,
 		match,
+		...(p1 && { p1 }),
+		...(p2 && { p2 }),
 		status,
 		minute: typeof minuteRaw === "number" ? minuteRaw : undefined,
 		odds,

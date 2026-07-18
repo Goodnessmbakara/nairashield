@@ -1,10 +1,6 @@
-/**
- * Email/password auth — user store backed by D1 (SQLite at the edge).
- * Table: users (id, sub, email, name, password_hash, created_at)
- */
-
 import type { Env, AuthUser } from "../types";
 import { hashPassword, verifyPassword } from "./password";
+import { getDb } from "../db/client";
 
 type UserRow = {
 	id: number;
@@ -16,12 +12,11 @@ type UserRow = {
 };
 
 export async function getStoredUser(env: Env, email: string): Promise<UserRow | null> {
-	const row = await env.DB.prepare(
-		"SELECT * FROM users WHERE email = ? LIMIT 1",
-	)
-		.bind(email.toLowerCase().trim())
-		.first<UserRow>();
-	return row ?? null;
+	const sql = getDb(env);
+	const rows = await sql`
+		SELECT * FROM users WHERE email = ${email.toLowerCase().trim()} LIMIT 1
+	`;
+	return (rows[0] as UserRow) ?? null;
 }
 
 export async function registerUser(
@@ -45,11 +40,11 @@ export async function registerUser(
 	const sub = `email:${normalEmail}`;
 	const displayName = name.trim() || normalEmail.split("@")[0]!;
 
-	await env.DB.prepare(
-		"INSERT INTO users (sub, email, name, password_hash, created_at) VALUES (?, ?, ?, ?, ?)",
-	)
-		.bind(sub, normalEmail, displayName, passwordHash, Date.now())
-		.run();
+	const sql = getDb(env);
+	await sql`
+		INSERT INTO users (sub, email, name, password_hash, created_at)
+		VALUES (${sub}, ${normalEmail}, ${displayName}, ${passwordHash}, ${Date.now()})
+	`;
 
 	return { user: { sub, email: normalEmail, name: displayName } };
 }
@@ -62,7 +57,6 @@ export async function loginUser(
 	const row = await getStoredUser(env, email);
 
 	if (!row) {
-		// Constant-time: don't reveal that email doesn't exist
 		await verifyPassword(
 			password,
 			"pbkdf2:100000:00000000000000000000000000000000:0000000000000000000000000000000000000000000000000000000000000000",

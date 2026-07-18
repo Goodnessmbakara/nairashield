@@ -3,7 +3,7 @@
  *
  * Only settles when:
  * 1. Match is ENDED on TxLINE (or position horizon elapsed as a soft cue), AND
- * 2. BetDEX returns a real settled order with PnL/payout fields.
+ * 2. Jupiter Predict returns a real settled order with PnL/payout fields.
  *
  * Never invents PnL. If the book cannot be confirmed, leave it open.
  */
@@ -42,7 +42,7 @@ function shouldAttemptSettle(pos: OpenPosition, market: MarketOdds | null): bool
 		return true;
 	}
 
-	// Soft cue: past event horizon — still requires real BetDEX settlement data
+	// Soft cue: past event horizon — still requires real Jupiter Predict settlement data
 	const due = Date.parse(pos.settleAfter);
 	if (Number.isFinite(due) && Date.now() >= due) return true;
 
