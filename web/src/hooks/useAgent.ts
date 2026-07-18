@@ -102,21 +102,25 @@ export function useAgent(options?: { enabled?: boolean }) {
     }
 
     const ctrl = new AbortController();
-    // Seed with the agent's persisted history (real KV ticks) so the
-    // dashboard shows the full track record, not just this browser session.
-    void fetchAgentHistory(40, ctrl.signal)
-      .then((history) => {
-        if (!mounted.current || ctrl.signal.aborted || history.length === 0) return;
-        setTicks((prev) => {
-          const seen = new Set(prev.map((t) => t.id));
-          return [...prev, ...history.filter((t) => !seen.has(t.id))].slice(0, 40);
-        });
-      })
-      .catch(() => {});
-    // One initial check only — no recursive cascade from overlapping timers
-    void poll(ctrl.signal);
+    // Background refresh is READ-ONLY: it merges the agent's persisted
+    // history (the cron's real ticks). Only the explicit "Run check" button
+    // triggers a new tick — an open dashboard tab must not multiply checks.
+    const refreshHistory = () =>
+      fetchAgentHistory(40, ctrl.signal)
+        .then((history) => {
+          if (!mounted.current || ctrl.signal.aborted || history.length === 0) return;
+          setTicks((prev) => {
+            const seen = new Set(prev.map((t) => t.id));
+            const merged = [...prev, ...history.filter((t) => !seen.has(t.id))];
+            merged.sort((a, b) => (a.id < b.id ? 1 : -1)); // tick ids are time-ordered
+            return merged.slice(0, 40);
+          });
+        })
+        .catch(() => {});
+
+    void refreshHistory();
     const id = window.setInterval(() => {
-      if (!inFlight.current) void poll();
+      void refreshHistory();
     }, POLL_MS);
 
     return () => {

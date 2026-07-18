@@ -11,8 +11,32 @@ function actionLabel(action: string) {
   return action;
 }
 
-const DecisionCard = React.forwardRef<HTMLDivElement, { tick: Tick; className?: string }>(
-  ({ tick, className, ...props }, ref) => {
+/** Consecutive identical decisions collapsed into one entry. */
+type DecisionGroup = { tick: Tick; count: number; firstAt: string };
+
+function groupTicks(ticks: Tick[]): DecisionGroup[] {
+  const groups: DecisionGroup[] = [];
+  for (const tick of ticks) {
+    const last = groups[groups.length - 1];
+    if (
+      last &&
+      last.tick.decision.action === tick.decision.action &&
+      last.tick.decision.reason === tick.decision.reason
+    ) {
+      last.count += 1;
+      last.firstAt = tick.receivedAt; // ticks are newest-first → oldest wins
+    } else {
+      groups.push({ tick, count: 1, firstAt: tick.receivedAt });
+    }
+  }
+  return groups;
+}
+
+const DecisionCard = React.forwardRef<
+  HTMLDivElement,
+  { tick: Tick; count?: number; firstAt?: string; className?: string }
+>(
+  ({ tick, count = 1, firstAt, className, ...props }, ref) => {
     const executed = tick.status === "Executed";
     const isTrade = tick.decision.action === "TRADE";
 
@@ -57,8 +81,18 @@ const DecisionCard = React.forwardRef<HTMLDivElement, { tick: Tick; className?: 
             >
               {actionLabel(tick.decision.action)}
             </Chip>
+            {count > 1 && (
+              <Chip
+                classNames={{ content: "font-medium text-[0.65rem] tabular-nums" }}
+                radius="sm"
+                size="sm"
+                variant="flat"
+              >
+                ×{count}
+              </Chip>
+            )}
             <span className="ml-auto text-tiny tabular-nums text-default-400">
-              {tick.receivedAt}
+              {count > 1 && firstAt ? `${firstAt} – ${tick.receivedAt}` : tick.receivedAt}
             </span>
           </div>
 
@@ -170,8 +204,8 @@ const DecisionFeed = React.forwardRef<HTMLDivElement, FeedProps>(
           </div>
         )}
 
-        {ticks.map((tick) => (
-          <DecisionCard key={tick.id} tick={tick} />
+        {groupTicks(ticks).map((g) => (
+          <DecisionCard key={g.tick.id} count={g.count} firstAt={g.firstAt} tick={g.tick} />
         ))}
       </div>
     </Card>
