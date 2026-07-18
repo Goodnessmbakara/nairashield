@@ -283,6 +283,57 @@ export async function fetchAgentHistory(limit = 40, signal?: AbortSignal) {
     yield: t.yield,
     execution: t.execution,
     movement: t.movement,
-    verification: t.verification,
-  })) satisfies Tick[];
+		verification: t.verification,
+	})) satisfies Tick[];
+}
+
+export type ReplayData = {
+	fixtures: WatchedFixture[];
+	history: Record<string, Tick[]>;
+	scores: Record<string, { home: number; away: number; minute?: number }>;
+};
+
+/** Fetch past fixtures, agent history overlay, and final scores for replays. Auth required. */
+export async function fetchReplays(limit = 1000, signal?: AbortSignal): Promise<ReplayData | null> {
+	if (!isConfigured() || !getToken()) return null;
+	try {
+		const res = await fetch(`${AGENT_URL}/agent/replays?limit=${limit}`, {
+			signal,
+			headers: authHeaders(),
+			credentials: "include",
+		});
+		if (!res.ok) return null;
+		
+		const body = await res.json() as {
+			fixtures?: WatchedFixture[];
+			history?: Record<string, any[]>;
+			scores?: Record<string, any>;
+		};
+
+		// Normalize history ticks just like fetchAgentHistory does
+		const normalizedHistory: Record<string, Tick[]> = {};
+		if (body.history) {
+			for (const [matchId, ticks] of Object.entries(body.history)) {
+				normalizedHistory[matchId] = ticks.map(t => ({
+					id: t.id,
+					receivedAt: t.at ? new Date(t.at).toLocaleTimeString() : "",
+					status: (t.status === "Executed" ? "Executed" : "Skipped") as "Executed" | "Skipped",
+					decision: t.decision,
+					market: t.market,
+					yield: t.yield,
+					execution: t.execution,
+					movement: t.movement,
+					verification: t.verification,
+				}));
+			}
+		}
+
+		return {
+			fixtures: body.fixtures ?? [],
+			history: normalizedHistory,
+			scores: body.scores ?? {},
+		};
+	} catch {
+		return null;
+	}
 }

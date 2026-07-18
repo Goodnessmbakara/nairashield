@@ -1,7 +1,7 @@
 import type { Env } from "../types";
 import { runAgentTick, getAgentStatus } from "../agent/pipeline";
 import { loadAgentConfig } from "../agent/config";
-import { fetchUpcomingFixtures } from "../integrations/txline";
+import { fetchUpcomingFixtures, fetchPastFixtures, fetchScoreSnapshot } from "../integrations/txline";
 import { verifyMatchOnChain } from "../integrations/txline-verify";
 import { listTicks } from "../agent/store";
 import { beginGoogleOAuth, googleConfigured, handleGoogleCallback } from "../auth/google";
@@ -276,6 +276,36 @@ export async function handleFetch(request: Request, env: Env): Promise<Response>
 		const config = loadAgentConfig(env);
 		const verification = await verifyMatchOnChain(config, fixtureId);
 		return json({ verification });
+	}
+
+	// ── Agent: replays (past matches + agent history) ─────────────────
+	if (method === "GET" && path === "/agent/replays") {
+		const auth = await requireSession(request, env);
+		if (auth instanceof Response) return auth;
+		const config = loadAgentConfig(env);
+		
+		const fixtures = await fetchPastFixtures(config);
+		const limit = Math.min(Number(url.searchParams.get("limit") || 1000), 2000);
+		const allTicks = await listTicks(env, limit);
+
+		// Group ticks by matchId
+		const history: Record<string, typeof allTicks> = {};
+		for (const t of allTicks) {
+			const matchId = t.market?.matchId || t.market?.match;
+			if (matchId) {
+				if (!history[matchId]) history[matchId] = [];
+				history[matchId].push(t);
+			}
+		}
+
+		// Fetch final scores for the past fixtures
+		const scores: Record<string, any> = {};
+		await Promise.all(fixtures.map(async (f) => {
+			const score = await fetchScoreSnapshot(config, f.fixtureId);
+			if (score) scores[f.fixtureId] = score;
+		}));
+
+		return json({ fixtures, history, scores });
 	}
 
 	// ── Agent: history ────────────────────────────────────────────────

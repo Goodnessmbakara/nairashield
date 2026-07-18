@@ -14,6 +14,7 @@ import { Icon } from "@iconify/react";
 import DecisionFeed from "./DecisionFeed";
 import PortfolioView from "./dashboard/PortfolioView";
 import ProofsView from "./dashboard/ProofsView";
+import ReplaysView from "./dashboard/ReplaysView";
 import WatchingPanel from "./dashboard/WatchingPanel";
 import StatCard from "./ui/StatCard";
 import GateCard from "./ui/GateCard";
@@ -39,6 +40,7 @@ const VIEW_TITLES: Record<DashboardView, string> = {
   overview: "Overview",
   decisions: "Decisions",
   proofs: "Proofs",
+  replays: "Replays",
   portfolio: "Portfolio",
 };
 
@@ -485,6 +487,8 @@ export default function Dashboard() {
               )}
 
               {view === "proofs" && <ProofsView ticks={ticks} />}
+
+              {view === "replays" && <ReplaysView />}
 
               {view === "portfolio" && (
                 <div className="flex flex-col gap-4">

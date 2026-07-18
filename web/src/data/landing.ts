@@ -8,8 +8,8 @@ export const nav = [
 ];
 
 export const problem = {
-  title: "Sports capital sits dead between plays",
-  body: "Between matches and bets, stablecoins often sit in a wallet. Time passes. Purchasing power thins. You still have to watch markets yourself.",
+  title: "Meet the AI agent that manages your sports capital",
+  body: "Stop letting your stablecoins sit dead between plays. Your autonomous agent parks your funds in yield, watches live markets 24/7, and only strikes when the math clears.",
 };
 
 export const agitation = {
@@ -31,8 +31,8 @@ export const agitation = {
 };
 
 export const solution = {
-  title: "Retegol keeps capital earning, then deploys only when the math clears",
-  body: "Fund once. Idle balance sits in Kamino yield. An agent watches live TxLINE odds and only moves capital into Jupiter Predict markets when expected upside beats the yield you give up. After settlement, funds go back to earning.",
+  title: "Your agent keeps capital earning, then deploys only when the math clears",
+  body: "Fund once. Your balance sits in Kamino yield. The AI agent watches live TxLINE odds and only moves capital into Jupiter Predict markets when expected upside beats the yield you give up. After settlement, funds go back to earning.",
 };
 
 export type Step = {

@@ -177,16 +177,32 @@ function flagUrl(country: string): string | undefined {
 	return iso ? `https://flagcdn.com/w40/${iso}.png` : undefined;
 }
 
-/**
- * Public: the real fixtures the agent is watching (auth'd TxLINE feed).
- * Returns [] when TxLINE is not configured or the feed is unreachable.
- */
 export async function fetchUpcomingFixtures(config: AgentConfig): Promise<FixtureRef[]> {
 	if (!config.txlineApiUrl || !config.txlineApiKey) return [];
 	try {
 		const origin = getOrigin(config);
 		const jwt = await getGuestJwt(origin);
-		return await listFixtures(origin, buildHeaders(jwt, config.txlineApiKey));
+		const all = await listFixtures(origin, buildHeaders(jwt, config.txlineApiKey));
+		const now = Date.now();
+		// Live or upcoming (started recently or in future)
+		return all.filter((f) => f.start > now || (now - f.start < 3 * 3600 * 1000));
+	} catch {
+		return [];
+	}
+}
+
+/**
+ * Public: Past fixtures from TxLINE.
+ */
+export async function fetchPastFixtures(config: AgentConfig): Promise<FixtureRef[]> {
+	if (!config.txlineApiUrl || !config.txlineApiKey) return [];
+	try {
+		const origin = getOrigin(config);
+		const jwt = await getGuestJwt(origin);
+		const all = await listFixtures(origin, buildHeaders(jwt, config.txlineApiKey));
+		const now = Date.now();
+		// Ended/Past (started more than 2 hours ago)
+		return all.filter((f) => now - f.start >= 2 * 3600 * 1000).sort((a, b) => b.start - a.start);
 	} catch {
 		return [];
 	}
