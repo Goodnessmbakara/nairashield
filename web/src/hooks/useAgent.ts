@@ -1,7 +1,7 @@
 "use client";
 
 import React from "react";
-import { fetchTick, isConfigured, type Tick } from "../lib/agent";
+import { fetchAgentHistory, fetchTick, isConfigured, type Tick } from "../lib/agent";
 import { getToken } from "../lib/auth";
 
 const POLL_MS = 60_000;
@@ -102,6 +102,17 @@ export function useAgent(options?: { enabled?: boolean }) {
     }
 
     const ctrl = new AbortController();
+    // Seed with the agent's persisted history (real KV ticks) so the
+    // dashboard shows the full track record, not just this browser session.
+    void fetchAgentHistory(40, ctrl.signal)
+      .then((history) => {
+        if (!mounted.current || ctrl.signal.aborted || history.length === 0) return;
+        setTicks((prev) => {
+          const seen = new Set(prev.map((t) => t.id));
+          return [...prev, ...history.filter((t) => !seen.has(t.id))].slice(0, 40);
+        });
+      })
+      .catch(() => {});
     // One initial check only — no recursive cascade from overlapping timers
     void poll(ctrl.signal);
     const id = window.setInterval(() => {
