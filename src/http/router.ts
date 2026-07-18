@@ -19,6 +19,7 @@ import {
 } from "../auth/session";
 import { signSessionToken } from "../auth/crypto";
 import { json } from "./json";
+import { handleAccountRoutes } from "../account/routes";
 
 export async function handleFetch(request: Request, env: Env): Promise<Response> {
 	const url = new URL(request.url);
@@ -54,6 +55,13 @@ export async function handleFetch(request: Request, env: Env): Promise<Response>
 				tick: "POST /agent/tick (auth)",
 				status: "GET /agent/status (auth)",
 				history: "GET /agent/history (auth)",
+				wallet: "POST /account/wallet | GET /account/wallet | PUT /account/wallet/withdrawal",
+				balance: "GET /account/balance",
+				transactions: "GET /account/transactions",
+				snapshots: "GET /account/snapshots",
+				withdraw: "POST /account/withdraw | GET /account/withdraw",
+				adminWithdrawals: "GET /admin/withdrawals (admin)",
+				adminFundBalance: "GET /admin/fund/balance (admin)",
 			},
 			auth: googleConfigured(env) ? "google" : "not_configured",
 		});
@@ -144,6 +152,44 @@ export async function handleFetch(request: Request, env: Env): Promise<Response>
 		return json({ ok: true }, 200, { "Set-Cookie": clearSessionCookieHeader() });
 	}
 
+	// ── Agent: deposit to Kamino then record live position (auth required) ──
+	if (method === "POST" && path === "/agent/deposit") {
+		const auth = await requireSession(request, env);
+		if (auth instanceof Response) return auth;
+		const config = loadAgentConfig(env);
+		let body: { amountUsdc?: number; txid?: string; record_only?: boolean } = {};
+		try { body = (await request.json()) as typeof body; } catch { /* default */ }
+		const amount = Number(body.amountUsdc ?? config.tradeSizeUsdc);
+		const { depositYield } = await import("../integrations/kamino");
+		const { savePosition } = await import("../agent/store");
+
+		// record_only = the deposit was done externally; just persist the position
+		if (body.record_only) {
+			await savePosition(env, {
+				protocol: "kamino", asset: "USDC",
+				balanceUsdc: amount,
+				apy: config.yieldApy,
+				lastTxid: body.txid,
+				source: "live",
+				updatedAt: new Date().toISOString(),
+			});
+			return json({ success: true, balanceUsdc: amount, txid: body.txid, recorded: true });
+		}
+
+		const result = await depositYield(env, config, amount);
+		if (result.success) {
+			await savePosition(env, {
+				protocol: "kamino", asset: "USDC",
+				balanceUsdc: result.balanceUsdc,
+				apy: config.yieldApy,
+				lastTxid: result.txid,
+				source: "live",
+				updatedAt: new Date().toISOString(),
+			});
+		}
+		return json({ success: result.success, balanceUsdc: result.balanceUsdc, txid: result.txid, error: result.error });
+	}
+
 	// ── Agent: tick ───────────────────────────────────────────────────
 	// ── Agent: external cron trigger (secret-gated, no session) ───────
 	// Lets a reliable external scheduler run the autonomous tick when
@@ -217,6 +263,10 @@ export async function handleFetch(request: Request, env: Env): Promise<Response>
 		const ticks = await listTicks(env, limit);
 		return json({ ticks, count: ticks.length });
 	}
+
+	// ── Account + Admin ───────────────────────────────────────────────
+	const accountResponse = await handleAccountRoutes(request, env, path, method);
+	if (accountResponse) return accountResponse;
 
 	return json({ error: "Not found", path }, 404);
 }

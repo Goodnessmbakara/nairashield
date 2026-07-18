@@ -37,6 +37,8 @@ import { getYieldPosition, withdrawYield, depositYield } from "../integrations/k
 import { placeMakerOrder } from "../integrations/jupiter";
 import { decide } from "../ai/brain";
 import type { AgentConfig } from "./config";
+import { sweepDeposits } from "../account/sweep";
+import { recordSnapshot, getPoolTotalUsdc } from "../account/ledger";
 
 export async function runAgentTick(env: Env): Promise<AgentTickResult> {
 	const started = Date.now();
@@ -45,6 +47,13 @@ export async function runAgentTick(env: Env): Promise<AgentTickResult> {
 	const flags = integrationFlags(env, config);
 
 	try {
+		// 0. Sweep user deposits (best-effort — never abort the tick on sweep failure)
+		try {
+			await sweepDeposits(env, config);
+		} catch (e) {
+			console.log("[sweep] error:", e instanceof Error ? e.message : e);
+		}
+
 		// Preflight: hold with a clear reason (never invent market data)
 		if (!flags.txline) {
 			return finishTick({
@@ -70,11 +79,13 @@ export async function runAgentTick(env: Env): Promise<AgentTickResult> {
 			market = await fetchLatestOdds(config);
 		} catch (e) {
 			if (e instanceof NoLiveOddsError) {
+				const yieldPosition = await getYieldPosition(env, config);
 				return finishTick({
 					id,
 					started,
 					config,
 					env,
+					yieldPosition: yieldPosition ?? undefined,
 					decision: {
 						action: "HOLD",
 						reason: e.message,
@@ -286,6 +297,13 @@ async function finishTick(args: {
 		durationMs: Date.now() - args.started,
 	};
 	await appendTick(args.env, tick);
+	// Record pool snapshot for NAV history
+	try {
+		const poolUsdc = await getPoolTotalUsdc(args.env);
+		await recordSnapshot(args.env, poolUsdc);
+	} catch {
+		// Non-fatal
+	}
 	return tick;
 }
 
