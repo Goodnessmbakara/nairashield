@@ -96,6 +96,12 @@ async function sweepWallet(
 		const inflow = postAmt - preAmt;
 		if (inflow <= 0n) continue;
 
+		// Check if we already swept this deposit
+		const { getDb } = await import("../db/client");
+		const sql = getDb(env);
+		const existing = await sql`SELECT id FROM fund_transactions WHERE tx_signature = ${sig} LIMIT 1`;
+		if (existing.length > 0) continue;
+
 		const encryptedPrivkey = await getEncryptedPrivkey(env, wallet.userSub);
 		const depositPrivBytes = await decryptPrivkey(env, encryptedPrivkey);
 		const depositKeypair = Keypair.fromSecretKey(depositPrivBytes);
@@ -114,8 +120,10 @@ async function sweepWallet(
 		const timeoutPromise = new Promise<never>((_, reject) =>
 			setTimeout(() => reject(new Error("Sweep confirmation timed out")), SWEEP_TIMEOUT_MS),
 		);
+		
+		// Use poolKeypair as fee payer (first signer), depositKeypair authorizes transfer
 		const sweepSig = await Promise.race([
-			sendAndConfirmTransaction(connection, sweepTx, [depositKeypair], { commitment: "confirmed" }),
+			sendAndConfirmTransaction(connection, sweepTx, [poolKeypair, depositKeypair], { commitment: "confirmed" }),
 			timeoutPromise,
 		]);
 
@@ -125,8 +133,8 @@ async function sweepWallet(
 			type: "deposit",
 			amountUsdc: inflow,
 			status: "confirmed",
-			txSignature: sweepSig,
-			notes: `Swept from ${wallet.depositAddress}; source tx: ${sig}`,
+			txSignature: sig, // record the original deposit signature to prevent double-sweeping
+			notes: `Swept to pool in tx: ${sweepSig}`,
 		});
 	}
 }
