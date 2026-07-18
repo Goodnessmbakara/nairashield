@@ -1,4 +1,4 @@
-# NairaShield — Superteam Earn Submission (paste-ready)
+# Retegol — Superteam Earn Submission (paste-ready)
 
 **Track:** Trading Tools and Agents (primary) · Prediction Markets and Settlement (secondary)
 

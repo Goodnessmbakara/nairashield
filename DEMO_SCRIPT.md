@@ -1,14 +1,14 @@
-# NairaShield — 5-Minute Demo Script
+# Retegol — 5-Minute Demo Script
 
 **Record during a live match** (France–England Jul 18 21:00 UTC or the final
 Jul 19 ~19:00 UTC) so real odds are on screen. Tabs pre-opened:
-dashboard (retegol.pages.dev, signed in), Solscan on the wallet, repo.
+dashboard (https://retegol.pages.dev, signed in), Solscan on the wallet, repo.
 
 ---
 
 **0:00 – 0:35 — The problem.**
 "Sports bettors hold stablecoins that sit idle between plays, losing value —
-a real problem for Nigerian Web3 users. NairaShield is an autonomous agent
+a real problem for Nigerian Web3 users. Retegol is an autonomous agent
 that never lets capital sleep: USDC earns Kamino yield by default, and only
 moves into a bet when live math says the edge beats the yield it gives up."
 
@@ -46,4 +46,4 @@ capital stays in yield' entry with the ×N collapse.
 on-chain subscribe flow using devnet SOL. Production-ready shape: deployed
 worker, cron autonomy, honest failure modes. Roadmap: per-user agents with
 keyless custody via session-signer policies — design in ROADMAP.md.
-NairaShield: capital that never sits still."
+Retegol: capital that never sits still."
