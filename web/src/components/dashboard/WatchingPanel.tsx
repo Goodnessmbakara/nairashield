@@ -81,7 +81,7 @@ export default function WatchingPanel() {
     const ctrl = new AbortController();
     const load = () => fetchFixtures(ctrl.signal).then(setFixtures).catch(() => {});
     load();
-    const t = setInterval(load, 60_000);
+    const t = setInterval(load, 15_000);
     return () => {
       ctrl.abort();
       clearInterval(t);

@@ -14,10 +14,17 @@ function actionLabel(action: string) {
   return action;
 }
 
-const StatusPanel = ({ tick }: { tick: Tick }) => {
+const StatusPanel = ({ tick, flash }: { tick: Tick; flash?: boolean }) => {
   const isTrade = tick.decision.action === "TRADE";
   return (
-    <div className="rounded-medium border border-default-200 bg-content2 px-4 py-4">
+    <div
+      className={cn(
+        "rounded-medium border bg-content2 px-4 py-4 transition-[box-shadow,border-color] duration-500",
+        flash
+          ? "border-success-400 shadow-[0_0_0_1px_rgba(23,201,100,0.35)]"
+          : "border-default-200",
+      )}
+    >
       <div className="flex flex-wrap items-center gap-2">
         <p className="text-tiny font-medium uppercase tracking-wide text-default-500">
           Current status
@@ -31,6 +38,17 @@ const StatusPanel = ({ tick }: { tick: Tick }) => {
         >
           {actionLabel(tick.decision.action)}
         </Chip>
+        {flash && (
+          <Chip
+            classNames={{ content: "font-medium text-[0.65rem]" }}
+            color="success"
+            radius="sm"
+            size="sm"
+            variant="flat"
+          >
+            just now
+          </Chip>
+        )}
         <span className="ml-auto text-tiny tabular-nums text-default-400">
           {tick.receivedAt}
         </span>
@@ -124,18 +142,33 @@ const DecisionCard = React.forwardRef<
 });
 DecisionCard.displayName = "DecisionCard";
 
+function syncLabel(lastSyncedAt: number | null): string {
+  if (!lastSyncedAt) return "connecting…";
+  const sec = Math.max(0, Math.round((Date.now() - lastSyncedAt) / 1000));
+  if (sec < 3) return "live";
+  if (sec < 60) return `${sec}s ago`;
+  return `${Math.round(sec / 60)}m ago`;
+}
+
 type FeedProps = {
   ticks: Tick[];
   error: string | null;
   loading: boolean;
+  lastSyncedAt?: number | null;
+  liveFlashId?: string | null;
   className?: string;
 };
 
 const DecisionFeed = React.forwardRef<HTMLDivElement, FeedProps>(
-  ({ ticks, error, loading, className }, ref) => {
+  ({ ticks, error, loading, lastSyncedAt = null, liveFlashId = null, className }, ref) => {
     const feed = React.useMemo(() => dedupeTicksForFeed(ticks), [ticks]);
     const current = feed[0];
     const history = feed.slice(1, 1 + MAX_HISTORY).filter((t) => !isIdleHold(t));
+    const [, setTick] = React.useState(0);
+    React.useEffect(() => {
+      const id = window.setInterval(() => setTick((n) => n + 1), 1000);
+      return () => window.clearInterval(id);
+    }, []);
 
     return (
       <Card
@@ -147,6 +180,25 @@ const DecisionFeed = React.forwardRef<HTMLDivElement, FeedProps>(
       >
         <div className="flex flex-wrap items-center gap-2">
           <h2 className="text-medium font-medium text-default-900">Agent activity</h2>
+          <Chip
+            classNames={{ content: "font-medium text-[0.65rem]" }}
+            color={lastSyncedAt && Date.now() - lastSyncedAt < 8_000 ? "success" : "default"}
+            radius="sm"
+            size="sm"
+            startContent={
+              <span
+                className={cn(
+                  "ml-1 h-1.5 w-1.5 rounded-full",
+                  lastSyncedAt && Date.now() - lastSyncedAt < 8_000
+                    ? "animate-pulse bg-success"
+                    : "bg-default-400",
+                )}
+              />
+            }
+            variant="flat"
+          >
+            {syncLabel(lastSyncedAt)}
+          </Chip>
           {loading && (
             <Chip
               classNames={{ content: "font-medium text-[0.65rem]" }}
@@ -155,7 +207,7 @@ const DecisionFeed = React.forwardRef<HTMLDivElement, FeedProps>(
               size="sm"
               variant="flat"
             >
-              updating
+              running check
             </Chip>
           )}
         </div>
@@ -192,13 +244,19 @@ const DecisionFeed = React.forwardRef<HTMLDivElement, FeedProps>(
             </div>
           )}
 
-          {current && <StatusPanel tick={current} />}
+          {current && (
+            <StatusPanel flash={liveFlashId === current.id} tick={current} />
+          )}
 
           {history.length > 0 && (
             <div className="flex flex-col gap-4">
               <p className="text-tiny font-medium text-default-500">Earlier changes</p>
               {history.map((t) => (
-                <DecisionCard key={t.id} tick={t} />
+                <DecisionCard
+                  key={t.id}
+                  className={liveFlashId === t.id ? "opacity-100" : undefined}
+                  tick={t}
+                />
               ))}
             </div>
           )}

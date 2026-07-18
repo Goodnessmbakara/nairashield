@@ -42,18 +42,25 @@ function isDashboardView(v: string): v is DashboardView {
 
 export default function Dashboard() {
   const { user, loading: authLoading, isAuthenticated, logout } = useAuth();
-  const { ticks, error, loading, poll, configured, needsAuth } = useAgent({
-    enabled: isAuthenticated,
-  });
+  const { ticks, error, loading, poll, configured, needsAuth, lastSyncedAt, liveFlashId } =
+    useAgent({
+      enabled: isAuthenticated,
+    });
 
   const [isCompact, setIsCompact] = React.useState(false);
   const [mobileOpen, setMobileOpen] = React.useState(false);
   const [view, setView] = React.useState<DashboardView>("overview");
+  const [, setClock] = React.useState(0);
   const {
     isOpen: logoutOpen,
     onOpen: openLogout,
     onOpenChange: onLogoutOpenChange,
   } = useDisclosure();
+
+  React.useEffect(() => {
+    const id = window.setInterval(() => setClock((n) => n + 1), 1000);
+    return () => window.clearInterval(id);
+  }, []);
 
   React.useEffect(() => {
     try {
@@ -337,7 +344,13 @@ export default function Dashboard() {
   );
 
   const decisionsPanel = (
-    <DecisionFeed error={error} loading={loading} ticks={ticks} />
+    <DecisionFeed
+      error={error}
+      lastSyncedAt={lastSyncedAt}
+      liveFlashId={liveFlashId}
+      loading={loading}
+      ticks={ticks}
+    />
   );
 
   return (
@@ -401,6 +414,14 @@ export default function Dashboard() {
               >
                 {connected ? "Live" : "Limited"}
               </Chip>
+              {connected && lastSyncedAt && (
+                <span className="hidden text-tiny tabular-nums text-default-400 sm:inline">
+                  agent sync{" "}
+                  {Math.max(0, Math.round((Date.now() - lastSyncedAt) / 1000)) < 5
+                    ? "now"
+                    : `${Math.max(0, Math.round((Date.now() - lastSyncedAt) / 1000))}s ago`}
+                </span>
+              )}
             </div>
 
             <Button

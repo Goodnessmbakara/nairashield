@@ -5,7 +5,9 @@ import { fetchAgentHistory, fetchTick, isConfigured, type Tick } from "../lib/ag
 import { getToken } from "../lib/auth";
 import { dedupeTicksForFeed, isIdleHold } from "../lib/ticks";
 
-const POLL_MS = 60_000;
+/** How often we pull cron ticks while the tab is visible (read-only). */
+const LIVE_POLL_MS = 4_000;
+const HIDDEN_POLL_MS = 30_000;
 
 /** Shared live agent poller - real ticks only, never fabricates metrics. */
 export function useAgent(options?: { enabled?: boolean }) {
@@ -14,9 +16,13 @@ export function useAgent(options?: { enabled?: boolean }) {
   const [error, setError] = React.useState<string | null>(null);
   const [loading, setLoading] = React.useState(false);
   const [needsAuth, setNeedsAuth] = React.useState(false);
+  const [lastSyncedAt, setLastSyncedAt] = React.useState<number | null>(null);
+  const [liveFlashId, setLiveFlashId] = React.useState<string | null>(null);
   const inFlight = React.useRef(false);
+  const historyInFlight = React.useRef(false);
   const mounted = React.useRef(true);
   const lastReason = React.useRef<string | null>(null);
+  const knownIds = React.useRef<Set<string>>(new Set());
 
   React.useEffect(() => {
     mounted.current = true;
@@ -25,8 +31,50 @@ export function useAgent(options?: { enabled?: boolean }) {
     };
   }, []);
 
+  const mergeHistory = React.useCallback((history: Tick[]) => {
+    if (!mounted.current || history.length === 0) return;
+    setTicks((prev) => {
+      const seen = new Set(prev.map((t) => t.id));
+      const incoming = history.filter((t) => !seen.has(t.id));
+      // Flash when a brand-new tick id appears (cron or another client)
+      for (const t of incoming) {
+        if (!knownIds.current.has(t.id) && !isIdleHold(t)) {
+          setLiveFlashId(t.id);
+          window.setTimeout(() => {
+            if (mounted.current) setLiveFlashId((id) => (id === t.id ? null : id));
+          }, 2500);
+        }
+        knownIds.current.add(t.id);
+      }
+      for (const t of prev) knownIds.current.add(t.id);
+
+      const merged = [...prev, ...incoming];
+      merged.sort((a, b) => (a.id < b.id ? 1 : -1));
+      const next = dedupeTicksForFeed(merged).slice(0, 40);
+      if (next[0]) lastReason.current = next[0].decision.reason ?? null;
+      return next;
+    });
+    setLastSyncedAt(Date.now());
+    setError(null);
+    setNeedsAuth(false);
+  }, []);
+
+  const refreshHistory = React.useCallback(async (signal?: AbortSignal) => {
+    if (historyInFlight.current) return;
+    if (!isConfigured() || !getToken()) return;
+    historyInFlight.current = true;
+    try {
+      const history = await fetchAgentHistory(40, signal);
+      if (!mounted.current || signal?.aborted) return;
+      mergeHistory(history);
+    } catch {
+      /* quiet — next poll retries */
+    } finally {
+      historyInFlight.current = false;
+    }
+  }, [mergeHistory]);
+
   const poll = React.useCallback(async (signal?: AbortSignal) => {
-    // Hard lock: stress-clicks / overlapping intervals cannot stack
     if (inFlight.current) return;
     if (!isConfigured()) {
       setError("Agent isn’t connected yet. Live numbers will appear when it is.");
@@ -47,9 +95,9 @@ export function useAgent(options?: { enabled?: boolean }) {
 
       setError(null);
       setNeedsAuth(false);
+      setLastSyncedAt(Date.now());
+      knownIds.current.add(tick.id);
 
-      // Avoid recursive list growth when the agent keeps returning the same HOLD,
-      // but always add the first tick so stat cards show something immediately.
       const reason = tick.decision?.reason ?? "";
       const prevIdle =
         lastReason.current !== null &&
@@ -68,9 +116,9 @@ export function useAgent(options?: { enabled?: boolean }) {
       setTicks((prev) => {
         if (prev[0]?.id === tick.id) return prev;
         if (sameAsLast && prev.length > 0) {
-          // Refresh latest status in place — do not grow a fake check count
           return [tick, ...prev.slice(1)].slice(0, 40);
         }
+        if (!isIdleHold(tick)) setLiveFlashId(tick.id);
         return dedupeTicksForFeed([tick, ...prev]).slice(0, 40);
       });
     } catch (e) {
@@ -114,39 +162,39 @@ export function useAgent(options?: { enabled?: boolean }) {
     }
 
     const ctrl = new AbortController();
-    // Background refresh is READ-ONLY: it merges the agent's persisted
-    // history (the cron's real ticks). Only the explicit "Run check" button
-    // triggers a new tick — an open dashboard tab must not multiply checks.
-    const refreshHistory = () =>
-      fetchAgentHistory(40, ctrl.signal)
-        .then((history) => {
-          if (!mounted.current || ctrl.signal.aborted || history.length === 0) return;
-          setTicks((prev) => {
-            const seen = new Set(prev.map((t) => t.id));
-            const merged = [...prev, ...history.filter((t) => !seen.has(t.id))];
-            merged.sort((a, b) => (a.id < b.id ? 1 : -1));
-            return dedupeTicksForFeed(merged).slice(0, 40);
-          });
-        })
-        .catch(() => {});
+    let timer: number | undefined;
 
-    void refreshHistory();
-    const id = window.setInterval(() => {
-      void refreshHistory();
-    }, POLL_MS);
+    const schedule = () => {
+      if (timer) window.clearInterval(timer);
+      const ms = document.hidden ? HIDDEN_POLL_MS : LIVE_POLL_MS;
+      timer = window.setInterval(() => {
+        void refreshHistory(ctrl.signal);
+      }, ms);
+    };
+
+    void refreshHistory(ctrl.signal);
+    schedule();
+
+    const onVis = () => {
+      schedule();
+      if (!document.hidden) void refreshHistory(ctrl.signal);
+    };
+    document.addEventListener("visibilitychange", onVis);
 
     return () => {
       ctrl.abort();
-      window.clearInterval(id);
+      if (timer) window.clearInterval(timer);
+      document.removeEventListener("visibilitychange", onVis);
     };
-  }, [poll, enabled]);
+  }, [enabled, refreshHistory]);
 
   return {
     ticks,
     error,
     loading,
+    lastSyncedAt,
+    liveFlashId,
     poll: () => {
-      // Manual run always uses a fresh controller (ignore prior abort)
       void poll();
     },
     configured: isConfigured(),
