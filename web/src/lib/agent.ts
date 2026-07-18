@@ -219,6 +219,39 @@ export async function fetchFixtures(signal?: AbortSignal): Promise<WatchedFixtur
   }
 }
 
+/** Run on-chain TxLINE proof check for one fixture. Auth required. */
+export async function verifyFixture(
+  fixtureId: string,
+  signal?: AbortSignal,
+): Promise<MatchVerification> {
+  if (!isConfigured()) {
+    throw new AgentError("PUBLIC_AGENT_URL is not set. No agent endpoint configured.");
+  }
+  if (!getToken()) {
+    throw new AgentError("Sign in with Google to verify fixtures.", "unauthorized");
+  }
+  const res = await fetch(
+    `${AGENT_URL}/agent/verify?fixtureId=${encodeURIComponent(fixtureId)}`,
+    {
+      signal,
+      headers: authHeaders(),
+      credentials: "include",
+    },
+  );
+  if (!res.ok) {
+    const text = await res.text().catch(() => "");
+    throw new AgentError(
+      text || `Verify failed (HTTP ${res.status})`,
+      res.status === 401 ? "unauthorized" : undefined,
+    );
+  }
+  const body = (await res.json()) as { verification?: MatchVerification; error?: string };
+  if (!body.verification) {
+    throw new AgentError(body.error || "No verification in response");
+  }
+  return body.verification;
+}
+
 /** Fetch recent tick history from KV. Auth required. */
 export async function fetchAgentHistory(limit = 40, signal?: AbortSignal) {
   if (!isConfigured() || !getToken()) return [];

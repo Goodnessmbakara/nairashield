@@ -2,6 +2,7 @@ import type { Env } from "../types";
 import { runAgentTick, getAgentStatus } from "../agent/pipeline";
 import { loadAgentConfig } from "../agent/config";
 import { fetchUpcomingFixtures } from "../integrations/txline";
+import { verifyMatchOnChain } from "../integrations/txline-verify";
 import { listTicks } from "../agent/store";
 import { beginGoogleOAuth, googleConfigured, handleGoogleCallback } from "../auth/google";
 import { registerUser, loginUser } from "../auth/emailauth";
@@ -56,6 +57,8 @@ export async function handleFetch(request: Request, env: Env): Promise<Response>
 				tick: "POST /agent/tick (auth)",
 				status: "GET /agent/status (auth)",
 				history: "GET /agent/history (auth)",
+				fixtures: "GET /agent/fixtures (auth)",
+				verify: "GET /agent/verify?fixtureId= (auth)",
 				wallet: "POST /account/wallet | GET /account/wallet | PUT /account/wallet/withdrawal",
 				profile: "GET /account/profile | POST /account/profile",
 				balance: "GET /account/balance",
@@ -256,6 +259,19 @@ export async function handleFetch(request: Request, env: Env): Promise<Response>
 				bettable: Boolean(config.jupiterApiUrl && config.solanaPrivateKey),
 			})),
 		});
+	}
+
+	// ── Agent: on-demand TxLINE Merkle → txoracle validate_fixture ────
+	if (method === "GET" && path === "/agent/verify") {
+		const auth = await requireSession(request, env);
+		if (auth instanceof Response) return auth;
+		const fixtureId = (url.searchParams.get("fixtureId") || "").trim();
+		if (!fixtureId) {
+			return json({ error: "fixtureId required" }, 400);
+		}
+		const config = loadAgentConfig(env);
+		const verification = await verifyMatchOnChain(config, fixtureId);
+		return json({ verification });
 	}
 
 	// ── Agent: history ────────────────────────────────────────────────
