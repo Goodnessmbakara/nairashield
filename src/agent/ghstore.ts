@@ -8,11 +8,16 @@
 
 import type { AgentTickResult, Env, OpenPosition, YieldPosition } from "../types";
 
-const OWNER = "fozagtx";
-const REPO = "nairashield-state";
+// Where state lives is the TEAM's choice: set GH_STATE_REPO ("owner/repo",
+// a repo the token owner controls) + GH_TOKEN. Until both are set, the
+// store is disabled and the agent runs without persistence.
 const BRANCH = "main";
 const PATH = "state.json";
-const API = `https://api.github.com/repos/${OWNER}/${REPO}/contents/${PATH}`;
+function apiUrl(env: Env): string | null {
+	const repo = env.GH_STATE_REPO;
+	if (!repo || !repo.includes("/")) return null;
+	return `https://api.github.com/repos/${repo}/contents/${PATH}`;
+}
 
 export type AgentBlob = {
 	ticks: AgentTickResult[];
@@ -34,9 +39,10 @@ function headers(env: Env): Record<string, string> {
 }
 
 export async function loadBlob(env: Env): Promise<{ blob: AgentBlob; sha: string | null }> {
-	if (!env.GH_TOKEN) return { blob: emptyBlob(), sha: null };
+	const api = apiUrl(env);
+	if (!env.GH_TOKEN || !api) return { blob: emptyBlob(), sha: null };
 	try {
-		const res = await fetch(`${API}?ref=${BRANCH}`, { headers: headers(env) });
+		const res = await fetch(`${api}?ref=${BRANCH}`, { headers: headers(env) });
 		if (res.status === 404) return { blob: emptyBlob(), sha: null };
 		if (!res.ok) return { blob: emptyBlob(), sha: null };
 		const body = (await res.json()) as { content?: string; sha?: string };
@@ -56,12 +62,13 @@ export async function saveBlob(
 	sha: string | null,
 	message: string,
 ): Promise<boolean> {
-	if (!env.GH_TOKEN) return false;
+	const api = apiUrl(env);
+	if (!env.GH_TOKEN || !api) return false;
 	try {
 		const bytes = new TextEncoder().encode(JSON.stringify(blob));
 		let bin = "";
 		for (const b of bytes) bin += String.fromCharCode(b);
-		const res = await fetch(API, {
+		const res = await fetch(api, {
 			method: "PUT",
 			headers: { ...headers(env), "content-type": "application/json" },
 			body: JSON.stringify({ message, content: btoa(bin), branch: BRANCH, ...(sha && { sha }) }),
