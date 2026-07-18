@@ -9,6 +9,22 @@ const MAX_HISTORY = 50;
 
 export async function appendTick(env: Env, tick: AgentTickResult): Promise<void> {
 	const prev = await listTicks(env);
+
+	// Free-tier KV allows 1,000 writes/day for the whole account. An identical
+	// idle HOLD every minute burns that for nothing: skip persisting when this
+	// tick adds no information over the last stored one. The dashboard already
+	// collapses identical decisions, so nothing visible is lost.
+	const last = prev[0];
+	const uneventful =
+		last &&
+		tick.decision.action === "HOLD" &&
+		last.decision.action === "HOLD" &&
+		tick.decision.reason === last.decision.reason &&
+		!tick.execution &&
+		!tick.movement?.length &&
+		tick.status !== "Error";
+	if (uneventful) return;
+
 	const next = [tick, ...prev].slice(0, MAX_HISTORY);
 	await env.AGENT_STATE.put(HISTORY_KEY, JSON.stringify(next));
 }
