@@ -37,11 +37,9 @@ function FixtureRow({ f }: { f: WatchedFixture }) {
           ) : (
             <span className="text-tiny text-default-400">{kickoffLabel(f.start)}</span>
           )}
-          {f.competition && (
-            <span className="text-[0.6rem] text-default-400 bg-default-100 px-1.5 py-0.5 rounded-full leading-tight">
-              {f.competition}
-            </span>
-          )}
+          <span className="text-[0.6rem] text-warning-600 bg-warning-50 px-1.5 py-0.5 rounded-full leading-tight font-medium">
+            {f.competition || "World Cup"}
+          </span>
         </div>
       </div>
 
@@ -90,7 +88,7 @@ export default function WatchingPanel() {
             </div>
             <div>
               <h2 className="font-display text-medium font-semibold text-foreground leading-tight">Watching</h2>
-              <p className="text-tiny text-default-400 leading-tight">TxLINE live feed</p>
+              <p className="text-tiny text-default-400 leading-tight">2026 World Cup · TxLINE</p>
             </div>
           </div>
           <div className="flex items-center gap-1.5">

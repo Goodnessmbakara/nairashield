@@ -160,7 +160,7 @@ export class NoLiveOddsError extends Error {
 	}
 }
 
-export type FixtureRef = { fixtureId: string; p1: string; p2: string; start: number; flag1?: string; flag2?: string; competition?: string; };
+export type FixtureRef = { fixtureId: string; p1: string; p2: string; start: number; flag1?: string; flag2?: string; competition?: string; competitionId?: number; };
 
 const COUNTRY_ISO: Record<string, string> = {
 	France: "fr", England: "gb-eng", Spain: "es", Argentina: "ar",
@@ -207,16 +207,19 @@ async function listFixtures(
 			.map((f) => {
 				const p1 = String(f.Participant1 ?? f.participant1 ?? "");
 				const p2 = String(f.Participant2 ?? f.participant2 ?? "");
+				const competitionId = Number(f.CompetitionId ?? f.competitionId ?? 0);
+				const competition = String(f.Competition ?? f.competition ?? "");
 				return {
 					fixtureId: String(f.FixtureId ?? f.fixtureId ?? ""),
 					p1, p2,
 					start: Number(f.StartTime ?? f.startTime ?? 0),
 					flag1: flagUrl(p1),
 					flag2: flagUrl(p2),
-					competition: String(f.Competition ?? f.competition ?? ""),
+					competition,
+					competitionId,
 				};
 			})
-			.filter((f) => f.fixtureId)
+			.filter((f) => f.fixtureId && f.competitionId === 72) // World Cup only (CompId 72)
 			// In-play (started but recent) first, then soonest upcoming
 			.sort((a, b) => Math.abs(a.start - now) - Math.abs(b.start - now));
 	} catch {

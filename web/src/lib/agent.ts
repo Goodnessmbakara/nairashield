@@ -182,6 +182,7 @@ export type WatchedFixture = {
   flag1?: string;
   flag2?: string;
   competition?: string;
+  competitionId?: number;
 };
 
 /** Fixtures the agent is watching (real TxLINE feed). Auth required. */
