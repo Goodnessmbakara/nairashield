@@ -18,6 +18,7 @@ import StatCard from "./ui/StatCard";
 import GateCard from "./ui/GateCard";
 import LazyActivityChart from "./ui/LazyActivityChart";
 import AuthCard from "./auth/AuthCard";
+import AdminView from "./dashboard/AdminView";
 import DashboardSidebar from "./dashboard/DashboardSidebar";
 import SidebarDrawer from "./dashboard/SidebarDrawer";
 import LogoutConfirmModal from "./dashboard/LogoutConfirmModal";
@@ -33,6 +34,7 @@ const VIEW_TITLES: Record<DashboardView, string> = {
   overview: "Overview",
   decisions: "Decisions",
   portfolio: "Portfolio",
+  admin: "Admin",
 };
 
 function isDashboardView(v: string): v is DashboardView {
@@ -398,6 +400,12 @@ export default function Dashboard() {
               {view === "portfolio" && (
                 <div className="flex flex-col gap-4">
                   <PortfolioView />
+                </div>
+              )}
+
+              {view === "admin" && (
+                <div className="flex flex-col gap-4">
+                  <AdminView />
                 </div>
               )}
             </div>
