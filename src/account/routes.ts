@@ -1,7 +1,6 @@
 import type { Env } from "../types";
 import { json } from "../http/json";
 import { requireSession } from "../auth/session";
-import { loadAgentConfig } from "../agent/config";
 import { getOrCreateWallet, getWallet, setWithdrawalAddress } from "./wallet";
 import {
 	getUserBalance,
@@ -10,7 +9,7 @@ import {
 	getAllUserBalances,
 	getPoolTotalUsdc,
 } from "./ledger";
-import { requestWithdrawal, approveWithdrawal, rejectWithdrawal, listPendingWithdrawals } from "./withdraw";
+import { requestWithdrawal } from "./withdraw";
 import { loadPosition } from "../agent/store";
 
 function isAdmin(env: Env, email: string): boolean {
@@ -119,38 +118,12 @@ export async function handleAccountRoutes(
 		return null;
 	}
 
-	// ── Admin routes ───────────────────────────────────────────────────
+	// ── Admin routes (read-only monitoring) ──────────────────────────
 	if (path.startsWith("/admin/")) {
 		const auth = await requireSession(request, env);
 		if (auth instanceof Response) return auth;
 		if (!isAdmin(env, auth.session.user.email)) {
 			return json({ error: "Forbidden" }, 403);
-		}
-
-		const config = loadAgentConfig(env);
-
-		// GET /admin/withdrawals
-		if (method === "GET" && path === "/admin/withdrawals") {
-			const pending = await listPendingWithdrawals(env);
-			return json({ withdrawals: pending.map((w) => ({ ...w, amountUsdc: w.amountUsdc.toString() })) });
-		}
-
-		// POST /admin/withdrawals/:id/approve
-		const approveMatch = path.match(/^\/admin\/withdrawals\/([^/]+)\/approve$/);
-		if (method === "POST" && approveMatch) {
-			const result = await approveWithdrawal(env, config, approveMatch[1]!);
-			if ("error" in result) return json({ error: result.error }, 400);
-			return json(result);
-		}
-
-		// POST /admin/withdrawals/:id/reject
-		const rejectMatch = path.match(/^\/admin\/withdrawals\/([^/]+)\/reject$/);
-		if (method === "POST" && rejectMatch) {
-			let body: { reason?: string } = {};
-			try { body = (await request.json()) as typeof body; } catch { /* optional */ }
-			const result = await rejectWithdrawal(env, rejectMatch[1]!, body.reason);
-			if ("error" in result) return json({ error: result.error }, 400);
-			return json(result);
 		}
 
 		// GET /admin/fund/balance

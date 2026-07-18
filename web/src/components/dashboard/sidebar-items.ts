@@ -5,7 +5,7 @@ import type { SidebarItem } from "./SidebarNav";
  * Two honest destinations only: everything at a glance, and the full
  * decision log. No duplicate views.
  */
-export type DashboardView = "overview" | "decisions" | "portfolio" | "admin";
+export type DashboardView = "overview" | "decisions" | "portfolio";
 
 export const dashboardNav: SidebarItem[] = [
   {
@@ -22,10 +22,5 @@ export const dashboardNav: SidebarItem[] = [
     key: "portfolio",
     title: "Portfolio",
     icon: "solar:wallet-2-linear",
-  },
-  {
-    key: "admin",
-    title: "Admin",
-    icon: "solar:shield-keyhole-linear",
   },
 ];

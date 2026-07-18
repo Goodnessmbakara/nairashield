@@ -26,6 +26,10 @@ export const AGENT_POLICY = {
 	stopLossEdge: 0.06,
 	/** Default RPC if env.RPC_URL unset */
 	defaultRpcUrl: "https://api.devnet.solana.com",
+	/** Hours a withdrawal must be queued before auto-execution */
+	withdrawalDelayHours: 1,
+	/** Max USDC a single user can withdraw per 24h (micro-USDC) */
+	maxDailyWithdrawalUsdc: 500_000_000n,
 } as const;
 
 export type AgentConfig = {
@@ -47,6 +51,10 @@ export type AgentConfig = {
 	solanaPrivateKey: string;
 	/** Jupiter Predict REST base (execution venue). */
 	jupiterApiUrl: string;
+	/** Hours a withdrawal must be queued before auto-execution */
+	withdrawalDelayHours: number;
+	/** Max USDC a single user can withdraw per 24h (micro-USDC) */
+	maxDailyWithdrawalUsdc: bigint;
 };
 
 export type JupiterOutcomeRef = {
@@ -75,6 +83,8 @@ export function loadAgentConfig(env: Env): AgentConfig {
 		usdcMintPubKey: env.USDC_MINT_PUBKEY || "",
 		solanaPrivateKey: env.SOLANA_PRIVATE_KEY || "",
 		jupiterApiUrl: (env.JUPITER_API_URL || "https://api.jup.ag/prediction/v1").replace(/\/$/, ""),
+		withdrawalDelayHours: p.withdrawalDelayHours,
+		maxDailyWithdrawalUsdc: p.maxDailyWithdrawalUsdc,
 	};
 }
 

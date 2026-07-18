@@ -38,6 +38,7 @@ import { placeMakerOrder } from "../integrations/jupiter";
 import { decide } from "../ai/brain";
 import type { AgentConfig } from "./config";
 import { sweepDeposits } from "../account/sweep";
+import { processQueuedWithdrawals } from "../account/autowithdraw";
 import { recordSnapshot, getPoolTotalUsdc } from "../account/ledger";
 
 export async function runAgentTick(env: Env): Promise<AgentTickResult> {
@@ -52,6 +53,13 @@ export async function runAgentTick(env: Env): Promise<AgentTickResult> {
 			await sweepDeposits(env, config);
 		} catch (e) {
 			console.log("[sweep] error:", e instanceof Error ? e.message : e);
+		}
+
+		// 0b. Auto-process queued withdrawals past the delay window
+		try {
+			await processQueuedWithdrawals(env, config);
+		} catch (e) {
+			console.log("[autowithdraw] error:", e instanceof Error ? e.message : e);
 		}
 
 		// Preflight: hold with a clear reason (never invent market data)

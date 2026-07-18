@@ -12,7 +12,7 @@ export function corsHeaders(request: Request, env: Env): HeadersInit {
 	const allowed = allowedOrigins(env);
 	const match = allowed.find((o) => o === origin);
 	const headers: Record<string, string> = {
-		"Access-Control-Allow-Methods": "GET, POST, OPTIONS",
+		"Access-Control-Allow-Methods": "GET, POST, PUT, OPTIONS",
 		"Access-Control-Allow-Headers": "Content-Type, Authorization, Accept",
 		"Access-Control-Max-Age": "86400",
 		Vary: "Origin",

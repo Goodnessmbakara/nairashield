@@ -226,7 +226,7 @@ export default function PortfolioView() {
                 <p className="text-tiny text-default-500">{withdrawMsg}</p>
               )}
               <p className="text-tiny text-default-400">
-                Withdrawals are processed manually by the admin and sent on-chain within 24h.
+                Withdrawals are processed automatically on-chain after a short delay.
               </p>
             </div>
           </CardBody>
