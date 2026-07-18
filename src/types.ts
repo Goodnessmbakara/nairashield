@@ -222,6 +222,19 @@ export type AgentTickResult = {
 	};
 	/** Sharp odds shifts vs the previous tick's snapshot of the same fixture */
 	movement?: OddsMovement[];
+	/** TxLINE fixture verified against on-chain Merkle root (txoracle) */
+	verification?: {
+		ok: boolean;
+		fixtureId: string;
+		cluster: "mainnet-beta" | "devnet";
+		programId: string;
+		rootsPda?: string;
+		proofTs?: number;
+		participants?: string;
+		stage: "proof" | "pda" | "simulate";
+		reason: string;
+		explorerUrl?: string;
+	};
 	error?: string;
 	raw?: string;
 	/** ms spent in this tick */

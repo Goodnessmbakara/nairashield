@@ -23,10 +23,24 @@ Every cron tick the worker:
 1. Loads fixtures from `/api/fixtures/snapshot`
 2. Pulls per-fixture odds (devnet global snapshots 404, so we sweep fixtures)
 3. Detects sharp moves (>3% between snapshots)
-4. Feeds consensus odds into the Llama 3 decision (Y_net vs Kamino yield)
-5. Uses scores snapshots when settling open books
+4. **Verifies the match on-chain** — see below
+5. Feeds consensus odds into the Llama 3 decision (Y_net vs Kamino yield)
+6. Uses scores snapshots when settling open books
 
 No mocks: empty feed or missing credentials → honest `HOLD` with a reason.
+
+## On-chain match verification
+
+Implementation: [`src/integrations/txline-verify.ts`](../src/integrations/txline-verify.ts).
+
+When the agent has a live fixture it:
+
+1. `GET /api/fixtures/validation?fixtureId=…` — Merkle proof for that fixture
+2. Derives `ten_daily_fixtures_roots` PDA from the proof timestamp (not `Date.now()`)
+3. Confirms the PDA exists on Solana and is owned by `txoracle`
+4. `simulateTransaction(validate_fixture)` with the proof — same path as TxODDS `fixture_validation_view_only`
+
+A TRADE is blocked unless verification `ok: true`. Result is stored on each tick as `verification` (roots PDA + Solana explorer link).
 
 ## Hackathon feedback (TxODDS)
 

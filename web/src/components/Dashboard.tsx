@@ -14,7 +14,6 @@ import { Icon } from "@iconify/react";
 import DecisionFeed from "./DecisionFeed";
 import PortfolioView from "./dashboard/PortfolioView";
 import WatchingPanel from "./dashboard/WatchingPanel";
-import FirstRunChecklist from "./dashboard/FirstRunChecklist";
 import StatCard from "./ui/StatCard";
 import GateCard from "./ui/GateCard";
 import LazyActivityChart from "./ui/LazyActivityChart";
@@ -140,16 +139,24 @@ export default function Dashboard() {
     onToggleCompact: toggleCompact,
   };
 
-  const statusBanner =
-    latest?.decision?.reason &&
-    /TxLINE|Kamino|Jupiter|not configured|not wired/i.test(latest.decision.reason) ? (
-      <GateCard
-        description={latest.decision.reason}
-        icon="solar:plug-circle-linear"
-        title="Agent needs setup"
-        tone="warning"
-      />
-    ) : null;
+  // Only real setup/credential failures — not normal HOLDs that mention Kamino yield.
+  const setupReason = latest?.decision?.reason;
+  const needsSetup =
+    Boolean(setupReason) &&
+    !/not in-play|no match is in play|no live odds|keep capital in|stays? in yield|next fixture/i.test(
+      setupReason!,
+    ) &&
+    /not configured|not wired|missing |unavailable|credential|api key|failed to|couldn.?t (reach|load|fetch)/i.test(
+      setupReason!,
+    );
+  const statusBanner = needsSetup ? (
+    <GateCard
+      description={setupReason}
+      icon="solar:plug-circle-linear"
+      title="Agent needs setup"
+      tone="warning"
+    />
+  ) : null;
 
   const kpis = (
     <dl className="grid w-full grid-cols-1 gap-3 sm:grid-cols-3 sm:gap-4">
@@ -231,6 +238,33 @@ export default function Dashboard() {
                 {latest?.decision.reason}
               </p>
             </div>
+            {latest?.verification && (
+              <div
+                className={`rounded-medium border px-3 py-3 ${
+                  latest.verification.ok
+                    ? "border-success-200 bg-success-50/60"
+                    : "border-default-200 bg-content2"
+                }`}
+              >
+                <p className="text-tiny text-default-500">On-chain match check</p>
+                <p className="mt-0.5 text-small font-medium text-foreground">
+                  {latest.verification.ok ? "Verified on Solana" : "Not verified yet"}
+                </p>
+                <p className="mt-1 text-tiny leading-5 text-default-500">
+                  {latest.verification.reason}
+                </p>
+                {latest.verification.explorerUrl && (
+                  <a
+                    className="mt-2 inline-block text-tiny text-primary underline-offset-2 hover:underline"
+                    href={latest.verification.explorerUrl}
+                    rel="noopener noreferrer"
+                    target="_blank"
+                  >
+                    View roots PDA
+                  </a>
+                )}
+              </div>
+            )}
           </div>
         ) : (
           <div className="flex flex-col items-center rounded-medium border border-dashed border-default-200 px-3 py-5 text-center">
@@ -388,12 +422,14 @@ export default function Dashboard() {
               )}
 
               {view === "overview" && (
-                <div className="flex flex-col gap-4">
-                  <FirstRunChecklist hasTicks={observed > 0} onNavigate={changeView} />
+                <div className="flex flex-col gap-3 sm:gap-4">
                   {kpis}
-                  <div className="grid grid-cols-1 gap-4 lg:grid-cols-5 lg:gap-5">
+                  <div className="grid grid-cols-1 gap-3 lg:grid-cols-5 lg:gap-4">
                     <div className="lg:col-span-3">{activityPanel}</div>
-                    <div className="flex flex-col gap-4 lg:col-span-2">{oddsPanel}<WatchingPanel /></div>
+                    <div className="flex flex-col gap-3 lg:col-span-2">
+                      {oddsPanel}
+                      <WatchingPanel />
+                    </div>
                   </div>
                 </div>
               )}

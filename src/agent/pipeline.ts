@@ -33,6 +33,7 @@ import { buildOpenPosition, settleDuePositions } from "./settlement";
 import { detectOddsMovement } from "./movement";
 import { manageOpenPositions } from "./risk";
 import { fetchLatestOdds, NoLiveOddsError } from "../integrations/txline";
+import { verifyMatchOnChain } from "../integrations/txline-verify";
 import { getYieldPosition, withdrawYield, depositYield } from "../integrations/kamino";
 import { placeMakerOrder } from "../integrations/jupiter";
 import { decide } from "../ai/brain";
@@ -115,6 +116,9 @@ export async function runAgentTick(env: Env): Promise<AgentTickResult> {
 			config.movementThreshold,
 		);
 
+		// 1c. On-chain match verification — TxLINE Merkle proof vs txoracle root PDA
+		const verification = await verifyMatchOnChain(config, market.matchId);
+
 		// 0. Settlement — only with real venue settlement data
 		const settlements = await settleDuePositions(env, config, market);
 
@@ -155,6 +159,7 @@ export async function runAgentTick(env: Env): Promise<AgentTickResult> {
 				},
 				projection,
 				movement,
+				verification,
 				status: settlements.some((s) => s.success) ? "Settled" : "Skipped",
 				execution:
 					settlements.length || riskExits.length
@@ -164,12 +169,22 @@ export async function runAgentTick(env: Env): Promise<AgentTickResult> {
 		}
 
 		// 3. Decision
-		const decision = await decide(env, {
+		let decision = await decide(env, {
 			market,
 			yieldPosition,
 			config,
 			booksFull,
 		});
+
+		// Never trade a match the agent could not verify on-chain.
+		if (decision.action === "TRADE" && !verification.ok) {
+			decision = {
+				action: "HOLD",
+				reason: `Match not verified on-chain — capital stays in yield. ${verification.reason}`,
+				yieldApy: config.yieldApy,
+				makerMargin: config.makerMargin,
+			};
+		}
 
 		if (settlements.length > 0 && decision.action === "HOLD") {
 			return finishTick({
@@ -187,6 +202,7 @@ export async function runAgentTick(env: Env): Promise<AgentTickResult> {
 							: decision.reason,
 				},
 				movement,
+				verification,
 				status: settlements.some((s) => s.success) ? "Settled" : "Skipped",
 				execution: { settlements, riskExits: riskExits.length ? riskExits : undefined },
 			});
@@ -247,6 +263,7 @@ export async function runAgentTick(env: Env): Promise<AgentTickResult> {
 			status,
 			execution,
 			movement,
+			verification,
 		});
 	} catch (e) {
 		const detail = e instanceof Error ? e.message : String(e);
@@ -296,6 +313,7 @@ async function finishTick(args: {
 	execution?: TickExecution;
 	projection?: AgentTickResult["projection"];
 	movement?: AgentTickResult["movement"];
+	verification?: AgentTickResult["verification"];
 }): Promise<AgentTickResult> {
 	const tick: AgentTickResult = {
 		id: args.id,
@@ -307,6 +325,7 @@ async function finishTick(args: {
 		execution: args.execution,
 		projection: args.projection,
 		movement: args.movement?.length ? args.movement : undefined,
+		verification: args.verification,
 		openPositions: (await listOpenPositions(args.env)).length,
 		durationMs: Date.now() - args.started,
 	};

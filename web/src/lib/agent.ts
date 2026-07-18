@@ -49,6 +49,20 @@ export type TickMovement = {
   since?: string;
 };
 
+/** On-chain TxLINE fixture check (txoracle Merkle root). */
+export type MatchVerification = {
+  ok: boolean;
+  fixtureId: string;
+  cluster: "mainnet-beta" | "devnet";
+  programId: string;
+  rootsPda?: string;
+  proofTs?: number;
+  participants?: string;
+  stage: "proof" | "pda" | "simulate";
+  reason: string;
+  explorerUrl?: string;
+};
+
 /** Exact shape of the worker's tick response (plus optional user stamp). */
 export type AgentResponse =
   | {
@@ -65,6 +79,7 @@ export type AgentResponse =
         yield?: TickYield;
         execution?: TickExecution;
         movement?: TickMovement[];
+        verification?: MatchVerification;
         durationMs?: number;
       };
     }
@@ -80,6 +95,7 @@ export type Tick = {
   yield?: TickYield;
   execution?: TickExecution;
   movement?: TickMovement[];
+  verification?: MatchVerification;
 };
 
 export { AGENT_URL };
@@ -152,6 +168,7 @@ export async function fetchTick(signal?: AbortSignal): Promise<Tick> {
     yield: ok.tick?.yield,
     execution: ok.tick?.execution,
     movement: ok.tick?.movement,
+    verification: ok.tick?.verification,
   };
 }
 
@@ -221,6 +238,7 @@ export async function fetchAgentHistory(limit = 40, signal?: AbortSignal) {
       yield?: TickYield;
       execution?: TickExecution;
       movement?: TickMovement[];
+      verification?: MatchVerification;
     }>;
   };
   return (body.ticks ?? []).map((t) => ({
@@ -232,5 +250,6 @@ export async function fetchAgentHistory(limit = 40, signal?: AbortSignal) {
     yield: t.yield,
     execution: t.execution,
     movement: t.movement,
+    verification: t.verification,
   })) satisfies Tick[];
 }
