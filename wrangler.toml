@@ -9,14 +9,14 @@ binding = "AI"
 # Sessions (Google OAuth)
 [[kv_namespaces]]
 binding = "SESSIONS"
-id = "580ac9eb72d64c4e85e4835a2520f006"
-preview_id = "580ac9eb72d64c4e85e4835a2520f006"
+id = "7b502af8710344cfa1be4edae5360910"
+preview_id = "7b502af8710344cfa1be4edae5360910"
 
 # Agent tick history + yield position
 [[kv_namespaces]]
 binding = "AGENT_STATE"
-id = "dcb1020ab5f84f8381b7180159ca0fed"
-preview_id = "dcb1020ab5f84f8381b7180159ca0fed"
+id = "81aca151cfdb4a149013e3b2131ff4f1"
+preview_id = "81aca151cfdb4a149013e3b2131ff4f1"
 
 [triggers]
 crons = ["* * * * *"]

@@ -99,28 +99,70 @@ export type YieldOpResult = {
 };
 
 /**
- * Read last known live position from KV, or report unavailable.
- * Does not seed fake capital.
+ * Read yield position: on-chain first (Kamino obligation), fall back to DB snapshot.
+ * Never invents a balance.
  */
 export async function getYieldPosition(
 	env: Env,
 	config: AgentConfig,
 ): Promise<YieldPosition | null> {
+	if (!hasWallet(env)) return null;
+
+	// Try live on-chain read first when market + mint are configured
+	if (config.kaminoMarketPubKey && config.usdcMintPubKey) {
+		try {
+			const balanceUsdc = await fetchKaminoBalance(config);
+			if (balanceUsdc !== null) {
+				const position: YieldPosition = {
+					protocol: "kamino",
+					asset: "USDC",
+					balanceUsdc,
+					apy: config.yieldApy,
+					source: "live",
+					updatedAt: new Date().toISOString(),
+				};
+				// Persist so history ticks have a balance to record
+				await savePosition(env, position);
+				return position;
+			}
+		} catch {
+			// Fall through to stored snapshot
+		}
+	}
+
+	// Fall back to last stored snapshot
 	const stored = await loadPosition(env);
-	if (stored && stored.source === "live") {
-		return {
-			...stored,
-			apy: config.yieldApy,
-		};
-	}
-
-	// No invented balance. Caller must HOLD until a real deposit lands.
-	if (!hasWallet(env)) {
-		return null;
-	}
-
-	// Wallet present but no on-chain snapshot yet — still not a fake seed.
+	if (stored?.source === "live") return { ...stored, apy: config.yieldApy };
 	return null;
+}
+
+/**
+ * Query the wallet's Kamino USDC obligation balance directly from chain.
+ * Returns null if no obligation exists yet or on any error.
+ */
+async function fetchKaminoBalance(config: AgentConfig): Promise<number | null> {
+	const rpc = createSolanaRpc(config.rpcUrl);
+	const market = await KaminoMarket.load(rpc, address(config.kaminoMarketPubKey), 400);
+	if (!market) return null;
+
+	const { Keypair: KP } = await import("@solana/web3.js");
+	const { default: bs58 } = await import("bs58");
+	const walletKp = KP.fromSecretKey(bs58.decode(config.solanaPrivateKey));
+	const walletAddress = address(walletKp.publicKey.toBase58());
+	const usdcMintAddress = address(config.usdcMintPubKey);
+
+	const obligation = await market.getUserVanillaObligation(walletAddress).catch(() => null);
+	if (!obligation) return null;
+
+	const deposits = obligation.getDepositsByMint(usdcMintAddress);
+	if (!deposits || deposits.length === 0) return null;
+
+	let totalUsdc = 0;
+	for (const d of deposits) {
+		// `amount` is a Decimal in lamports (6 decimals for USDC)
+		if (d.amount) totalUsdc += d.amount.toNumber() / 1_000_000;
+	}
+	return totalUsdc > 0 ? totalUsdc : null;
 }
 
 export async function withdrawYield(
