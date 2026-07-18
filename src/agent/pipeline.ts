@@ -254,6 +254,12 @@ export async function runAgentTick(env: Env): Promise<AgentTickResult> {
 			durationMs: Date.now() - started,
 		};
 		await appendTick(env, tick);
+		try {
+			const poolUsdc = await getPoolTotalUsdc(env);
+			await recordSnapshot(env, poolUsdc);
+		} catch {
+			// Non-fatal
+		}
 		return tick;
 	}
 }

@@ -110,15 +110,13 @@ async function sweepWallet(
 			),
 		);
 
-		const timeout = setTimeout(() => { /* timeout signaled */ }, SWEEP_TIMEOUT_MS);
-		let sweepSig: string;
-		try {
-			sweepSig = await sendAndConfirmTransaction(connection, sweepTx, [depositKeypair], {
-				commitment: "confirmed",
-			});
-		} finally {
-			clearTimeout(timeout);
-		}
+		const timeoutPromise = new Promise<never>((_, reject) =>
+			setTimeout(() => reject(new Error("Sweep confirmation timed out")), SWEEP_TIMEOUT_MS),
+		);
+		const sweepSig = await Promise.race([
+			sendAndConfirmTransaction(connection, sweepTx, [depositKeypair], { commitment: "confirmed" }),
+			timeoutPromise,
+		]);
 
 		await insertTransaction(env, {
 			id: uuidv4(),
