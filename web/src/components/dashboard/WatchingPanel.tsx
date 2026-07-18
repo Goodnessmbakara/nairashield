@@ -35,11 +35,11 @@ export default function WatchingPanel() {
   const list = (fixtures ?? [])
     .slice()
     .sort((a, b) => Number(b.live) - Number(a.live) || a.start - b.start)
-    .slice(0, 6);
+    .slice(0, 4);
 
   return (
     <Card className="border border-transparent bg-content1 dark:border-default-100">
-      <CardBody className="gap-3 p-5">
+      <CardBody className="gap-2 p-4">
         <div className="flex items-center gap-2.5">
           <div className="flex rounded-medium border border-default-100 bg-default-50 p-1.5">
             <Icon className="text-default-500" icon="solar:eye-linear" width={16} />
@@ -61,7 +61,7 @@ export default function WatchingPanel() {
             {list.map((f) => (
               <div
                 key={f.fixtureId}
-                className="flex items-center justify-between gap-2 rounded-medium border border-default-200 bg-content2 px-3 py-2"
+                className="flex items-center justify-between gap-2 rounded-medium border border-default-200 bg-content2 px-3 py-1.5"
               >
                 <div className="flex min-w-0 items-center gap-2">
                   {f.live ? (
