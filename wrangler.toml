@@ -25,3 +25,7 @@ crons = ["* * * * *"]
 WORKER_URL = "https://nairashield-bot.zanbuilds.workers.dev"
 FRONTEND_URL = "https://nairashield.pages.dev"
 # Agent policy (yield, size, margins, horizons) is in src/agent/config.ts
+
+# Secrets (set via `wrangler secret put`):
+# ACCOUNT_MASTER_KEY — 32-byte hex, AES-GCM key for custodial deposit keypairs
+# ADMIN_EMAILS       — comma-separated admin email addresses
