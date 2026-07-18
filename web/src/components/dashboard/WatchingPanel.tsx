@@ -31,11 +31,16 @@ function FixtureRow({ f }: { f: WatchedFixture }) {
           {f.flag2 && <img src={f.flag2} alt="" width={18} height={13} className="shrink-0 rounded-[2px]" />}
           <span className="text-small font-medium text-foreground truncate">{f.p2}</span>
         </div>
-        <div className="flex items-center gap-1.5">
+        <div className="flex items-center gap-1.5 flex-wrap">
           {f.live ? (
             <span className="text-[0.65rem] font-semibold text-success-600 uppercase tracking-wide">● Live</span>
           ) : (
             <span className="text-tiny text-default-400">{kickoffLabel(f.start)}</span>
+          )}
+          {f.competition && (
+            <span className="text-[0.6rem] text-default-400 bg-default-100 px-1.5 py-0.5 rounded-full leading-tight">
+              {f.competition}
+            </span>
           )}
         </div>
       </div>
@@ -88,11 +93,16 @@ export default function WatchingPanel() {
               <p className="text-tiny text-default-400 leading-tight">TxLINE live feed</p>
             </div>
           </div>
-          {liveCount > 0 && (
-            <Chip color="success" radius="full" size="sm" variant="dot">
-              {liveCount} live
+          <div className="flex items-center gap-1.5">
+            {liveCount > 0 && (
+              <Chip color="success" radius="full" size="sm" variant="dot">
+                {liveCount} live
+              </Chip>
+            )}
+            <Chip classNames={{ content: "text-[0.6rem] font-medium" }} radius="full" size="sm" variant="flat">
+              Free tier
             </Chip>
-          )}
+          </div>
         </div>
 
         {/* Fixture list */}

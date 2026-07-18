@@ -181,6 +181,7 @@ export type WatchedFixture = {
   bettable: boolean;
   flag1?: string;
   flag2?: string;
+  competition?: string;
 };
 
 /** Fixtures the agent is watching (real TxLINE feed). Auth required. */

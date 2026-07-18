@@ -160,7 +160,7 @@ export class NoLiveOddsError extends Error {
 	}
 }
 
-export type FixtureRef = { fixtureId: string; p1: string; p2: string; start: number; flag1?: string; flag2?: string };
+export type FixtureRef = { fixtureId: string; p1: string; p2: string; start: number; flag1?: string; flag2?: string; competition?: string; };
 
 const COUNTRY_ISO: Record<string, string> = {
 	France: "fr", England: "gb-eng", Spain: "es", Argentina: "ar",
@@ -213,6 +213,7 @@ async function listFixtures(
 					start: Number(f.StartTime ?? f.startTime ?? 0),
 					flag1: flagUrl(p1),
 					flag2: flagUrl(p2),
+					competition: String(f.Competition ?? f.competition ?? ""),
 				};
 			})
 			.filter((f) => f.fixtureId)
