@@ -347,10 +347,10 @@ function VerificationReceipt({
         <div className="border-t border-dashed border-primary-100 px-4 py-8 text-center">
           <Icon className="mx-auto text-primary-300" icon="solar:shield-check-bold" width={32} />
           <p className="mt-2 text-small font-medium text-default-600">
-            Pick a market to run on-chain verify
+            Waiting for autonomous verify…
           </p>
           <p className="mt-1 text-tiny text-default-400">
-            Same path as the agent: TxLINE proof → roots PDA → validate_fixture
+            Agent + this panel self-run: TxLINE proof → roots PDA → validate_fixture
           </p>
         </div>
       )}
@@ -371,6 +371,38 @@ export default function ProofsView({ ticks }: Props) {
     [feed],
   );
 
+  const list = React.useMemo(
+    () =>
+      (fixtures ?? [])
+        .slice()
+        .sort((a, b) => Number(b.live) - Number(a.live) || a.start - b.start)
+        .slice(0, 12),
+    [fixtures],
+  );
+
+  const selectedFixture = list.find((f) => f.fixtureId === selectedId);
+  const matchLabel = selectedFixture
+    ? `${selectedFixture.p1} vs ${selectedFixture.p2}`
+    : active?.participants;
+
+  const runVerify = React.useCallback(async (fixtureId: string, quiet = false) => {
+    setSelectedId(fixtureId);
+    setLoadingId(fixtureId);
+    if (!quiet) setError(null);
+    if (!quiet) setActive(null);
+    try {
+      const result = await verifyFixture(fixtureId);
+      setActive(result);
+      setError(null);
+    } catch (e) {
+      if (!quiet) setActive(null);
+      setError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setLoadingId(null);
+    }
+  }, []);
+
+  // Load markets; no human click required
   React.useEffect(() => {
     const ctrl = new AbortController();
     fetchFixtures(ctrl.signal)
@@ -387,31 +419,24 @@ export default function ProofsView({ ticks }: Props) {
     };
   }, []);
 
-  const list = (fixtures ?? [])
-    .slice()
-    .sort((a, b) => Number(b.live) - Number(a.live) || a.start - b.start)
-    .slice(0, 12);
+  // Self-verify nearest fixture as soon as feed is ready (autonomous demo path)
+  const autoVerified = React.useRef<string | null>(null);
+  React.useEffect(() => {
+    if (list.length === 0) return;
+    const target = list.find((f) => f.live) ?? list[0]!;
+    if (autoVerified.current === target.fixtureId) return;
+    autoVerified.current = target.fixtureId;
+    void runVerify(target.fixtureId, true);
+  }, [list, runVerify]);
 
-  const selectedFixture = list.find((f) => f.fixtureId === selectedId);
-  const matchLabel = selectedFixture
-    ? `${selectedFixture.p1} vs ${selectedFixture.p2}`
-    : active?.participants;
-
-  async function runVerify(fixtureId: string) {
-    setSelectedId(fixtureId);
-    setLoadingId(fixtureId);
-    setError(null);
-    setActive(null);
-    try {
-      const result = await verifyFixture(fixtureId);
-      setActive(result);
-    } catch (e) {
-      setActive(null);
-      setError(e instanceof Error ? e.message : String(e));
-    } finally {
-      setLoadingId(null);
-    }
-  }
+  // Re-verify selected match every 60s while this view is open (no human in loop)
+  React.useEffect(() => {
+    if (!selectedId) return;
+    const t = window.setInterval(() => {
+      void runVerify(selectedId, true);
+    }, 60_000);
+    return () => window.clearInterval(t);
+  }, [selectedId, runVerify]);
 
   return (
     <div className="flex flex-col gap-4 lg:grid lg:grid-cols-5 lg:gap-4">
@@ -426,7 +451,7 @@ export default function ProofsView({ ticks }: Props) {
                 Markets
               </h2>
               <p className="text-tiny text-primary-600/70">
-                Tap a fixture → on-chain TxLINE verify
+                Auto-verifies on load · same path as the agent cron
               </p>
             </div>
           </div>

@@ -24,6 +24,7 @@ import LogoutConfirmModal from "./dashboard/LogoutConfirmModal";
 import { dashboardNav, type DashboardView } from "./dashboard/sidebar-items";
 import { dedupeTicksForFeed, displayAgentReason, isIdleHold } from "../lib/ticks";
 import { TeamFlag, flagUrl } from "../lib/flags";
+import { verifyFixture, type MatchVerification } from "../lib/agent";
 import { useAgent } from "../hooks/useAgent";
 import { useAuth } from "../hooks/useAuth";
 
@@ -64,6 +65,9 @@ export default function Dashboard() {
   const [view, setView] = React.useState<DashboardView>("overview");
   const [, setClock] = React.useState(0);
   const didAutoCheck = React.useRef(false);
+  const [liveVerify, setLiveVerify] = React.useState<MatchVerification | null>(null);
+  const [verifyBusy, setVerifyBusy] = React.useState(false);
+  const lastVerifiedId = React.useRef<string | null>(null);
   const {
     isOpen: logoutOpen,
     onOpen: openLogout,
@@ -143,6 +147,40 @@ export default function Dashboard() {
     agentStatus?.position?.apy ??
     agentStatus?.config?.yieldApy ??
     0.08;
+
+  // Self-verify current fixture (no human click) — agent cron also verifies every tick
+  const fixtureIdForVerify = market?.matchId ?? null;
+  React.useEffect(() => {
+    if (!isAuthenticated || !configured || !fixtureIdForVerify) return;
+    if (lastVerifiedId.current === fixtureIdForVerify && liveVerify) return;
+
+    let cancelled = false;
+    const run = async () => {
+      setVerifyBusy(true);
+      try {
+        const v = await verifyFixture(fixtureIdForVerify);
+        if (!cancelled) {
+          setLiveVerify(v);
+          lastVerifiedId.current = fixtureIdForVerify;
+        }
+      } catch {
+        /* tick verification may still appear after poll */
+      } finally {
+        if (!cancelled) setVerifyBusy(false);
+      }
+    };
+    void run();
+    const t = window.setInterval(() => void run(), 60_000);
+    return () => {
+      cancelled = true;
+      window.clearInterval(t);
+    };
+  }, [isAuthenticated, configured, fixtureIdForVerify]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const verification =
+    latest?.verification ??
+    agentStatus?.lastTick?.verification ??
+    liveVerify;
 
   if (authLoading) {
     return (
@@ -358,32 +396,63 @@ export default function Dashboard() {
           </div>
         )}
 
-        {latest?.verification && (
-          <div
-            className={`rounded-medium border px-3 py-2.5 ${
-              latest.verification.ok
+        {/* Auto on-chain VAR — runs with every agent tick + background refresh */}
+        <div
+          className={`rounded-medium border px-3 py-2.5 ${
+            verifyBusy
+              ? "border-primary-200 bg-primary-50"
+              : verification?.ok
                 ? "border-success-200 bg-success-50"
-                : "border-warning-200 bg-warning-50"
-            }`}
-          >
-            <div className="flex flex-wrap items-center gap-2">
+                : verification
+                  ? "border-warning-200 bg-warning-50"
+                  : "border-primary-100 bg-primary-50/40"
+          }`}
+        >
+          <div className="flex flex-wrap items-center gap-2">
+            {verifyBusy ? (
+              <Chip color="primary" size="sm" variant="flat" classNames={{ content: "text-[0.65rem] font-bold" }}>
+                VAR · CHECKING
+              </Chip>
+            ) : (
               <Chip
-                color={latest.verification.ok ? "success" : "warning"}
+                color={verification?.ok ? "success" : verification ? "warning" : "primary"}
                 size="sm"
                 variant="flat"
                 classNames={{ content: "text-[0.65rem] font-bold" }}
               >
-                {latest.verification.ok ? "VAR · CONFIRMED" : "VAR · REVIEW"}
+                {verification?.ok
+                  ? "VAR · CONFIRMED"
+                  : verification
+                    ? "VAR · BLOCKED"
+                    : "VAR · AUTO"}
               </Chip>
+            )}
+            {verification && (
               <span className="text-tiny text-default-600">
-                {latest.verification.stage} · {latest.verification.cluster}
+                {verification.stage} · {verification.cluster}
               </span>
-            </div>
-            <p className="mt-1 text-tiny leading-5 text-default-600">
-              {latest.verification.reason}
-            </p>
+            )}
+            <span className="text-[0.65rem] font-medium uppercase tracking-wide text-primary-500">
+              no human · self-verify
+            </span>
           </div>
-        )}
+          <p className="mt-1 text-tiny leading-5 text-default-600">
+            {verifyBusy
+              ? "Autonomous on-chain check: TxLINE proof → roots PDA → validate_fixture…"
+              : verification?.reason ||
+                "Every agent tick self-verifies the match on Solana before any TRADE can leave yield."}
+          </p>
+          {verification?.explorerUrl && (
+            <a
+              className="mt-1 inline-block text-tiny font-semibold text-primary underline-offset-2 hover:underline"
+              href={verification.explorerUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+            >
+              Roots PDA on Explorer
+            </a>
+          )}
+        </div>
 
         <div className="flex flex-wrap items-center gap-2 border-t border-primary-100 pt-3">
           <Button
@@ -397,21 +466,19 @@ export default function Dashboard() {
           >
             Run check
           </Button>
-          {market?.matchId && (
-            <Button
-              className="font-semibold"
-              color="secondary"
-              radius="full"
-              size="sm"
-              startContent={<Icon icon="solar:shield-check-bold" width={14} />}
-              variant="flat"
-              onPress={() => changeView("proofs")}
-            >
-              Verify match
-            </Button>
-          )}
+          <Button
+            className="font-semibold"
+            color="secondary"
+            radius="full"
+            size="sm"
+            startContent={<Icon icon="solar:shield-check-bold" width={14} />}
+            variant="flat"
+            onPress={() => changeView("proofs")}
+          >
+            VAR receipt
+          </Button>
           <span className="text-tiny text-primary-600/80">
-            Cron loop · TxLINE in · decide · optional on-chain VAR
+            Cron: TxLINE → self-verify on Solana → Y_net → HOLD or TRADE
           </span>
         </div>
       </CardBody>
