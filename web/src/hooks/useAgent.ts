@@ -15,11 +15,15 @@ import { getToken } from "../lib/auth";
 import { dedupeTicksForFeed, isIdleHold } from "../lib/ticks";
 
 /**
- * Fast status/history polling so the dashboard feels live.
- * Worker cron is still * * * * * — we just surface each new tick within seconds.
+ * Agent-first live loop (no human "Run check" required):
+ * - Status/history poll: surface cron ticks within seconds
+ * - Tick interval: while the dashboard is open, fire the same autonomous
+ *   decision cycle the worker cron uses (worker also runs * * * * *)
  */
 const LIVE_POLL_MS = 5_000;
 const HIDDEN_POLL_MS = 30_000;
+/** Align with worker cron — autonomous tick while operator is watching */
+const TICK_INTERVAL_MS = 60_000;
 const FLASH_MS = 3_500;
 
 /** Shared live agent poller — real ticks only, never fabricates metrics. */
@@ -190,7 +194,7 @@ export function useAgent(options?: { enabled?: boolean }) {
       }
       if (!getToken()) {
         setNeedsAuth(true);
-        setError("Sign in with Google to run live checks.");
+        setError("Sign in with Google to open the live agent.");
         return;
       }
 
@@ -257,41 +261,60 @@ export function useAgent(options?: { enabled?: boolean }) {
     }
     if (!getToken()) {
       setNeedsAuth(true);
-      setError("Sign in with Google to run live checks.");
+      setError("Sign in with Google to open the live agent.");
       return;
     }
 
     const ctrl = new AbortController();
-    let timer: number | undefined;
+    let pollTimer: number | undefined;
+    let tickTimer: number | undefined;
 
-    const schedule = () => {
-      if (timer) window.clearInterval(timer);
+    const schedulePoll = () => {
+      if (pollTimer) window.clearInterval(pollTimer);
       const ms = document.hidden ? HIDDEN_POLL_MS : LIVE_POLL_MS;
-      timer = window.setInterval(() => {
+      pollTimer = window.setInterval(() => {
         void refreshHistory(ctrl.signal);
         void refreshStatus(ctrl.signal);
       }, ms);
     };
 
+    const scheduleTicks = () => {
+      if (tickTimer) window.clearInterval(tickTimer);
+      if (document.hidden) return;
+      // First autonomous tick shortly after open, then every minute
+      window.setTimeout(() => {
+        if (!ctrl.signal.aborted && !document.hidden) void poll(ctrl.signal);
+      }, 1_500);
+      tickTimer = window.setInterval(() => {
+        if (!document.hidden) void poll(ctrl.signal);
+      }, TICK_INTERVAL_MS);
+    };
+
     void refreshHistory(ctrl.signal);
     void refreshStatus(ctrl.signal);
-    schedule();
+    schedulePoll();
+    scheduleTicks();
 
     const onVis = () => {
-      schedule();
+      schedulePoll();
       if (!document.hidden) {
         void refreshHistory(ctrl.signal);
         void refreshStatus(ctrl.signal);
+        scheduleTicks();
+      } else if (tickTimer) {
+        window.clearInterval(tickTimer);
+        tickTimer = undefined;
       }
     };
     document.addEventListener("visibilitychange", onVis);
 
     return () => {
       ctrl.abort();
-      if (timer) window.clearInterval(timer);
+      if (pollTimer) window.clearInterval(pollTimer);
+      if (tickTimer) window.clearInterval(tickTimer);
       document.removeEventListener("visibilitychange", onVis);
     };
-  }, [enabled, refreshHistory, refreshStatus]);
+  }, [enabled, refreshHistory, refreshStatus, poll]);
 
   return {
     ticks,
@@ -303,6 +326,7 @@ export function useAgent(options?: { enabled?: boolean }) {
     agentStatus,
     /** increments every second — use to re-render relative times */
     livePulse,
+    /** Optional: only for error recovery — not the primary control surface */
     poll: () => {
       void poll();
     },

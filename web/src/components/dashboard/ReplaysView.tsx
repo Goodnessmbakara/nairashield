@@ -525,7 +525,7 @@ function ReplayPlayer({
           <div className="py-6 text-center">
             <p className="text-small text-default-400">No agent steps for this match yet.</p>
             <p className="mt-1 text-tiny text-default-400">
-              While a match is live, leave the agent running (or hit Run check). Each tick is
+              While a match is live, leave the agent running. Each autonomous tick is
               saved and can be replayed here with capital + decisions.
             </p>
           </div>

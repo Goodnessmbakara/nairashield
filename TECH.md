@@ -144,12 +144,11 @@ Policy is a bold conjecture under criticism. Each rule states what would prove i
 Astro 7 · React 18 · HeroUI · Tailwind · framer-motion · Recharts.  
 Deployed on **Vercel** with `PUBLIC_AGENT_URL` baked at build time.
 
-Core demo surface: Overview → Watching + Run check + Agent activity + odds.
+Core demo surface: Overview → Watching + Live actions (autonomous ticks) + odds.
 
 ---
 
 ## What “done” means for this track
 
 Judges need a **running** agent that ingests TxLINE and shows autonomous
-decisions. Prefer a clean 3–5 minute demo of the loop over a tour of half-built
-side features. See [DEMO_SCRIPT.md](./DEMO_SCRIPT.md) and [SUBMISSION.md](./SUBMISSION.md).
+decisions. See [SUBMISSION.md](./SUBMISSION.md).

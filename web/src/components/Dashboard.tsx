@@ -65,7 +65,6 @@ export default function Dashboard() {
   const [mobileOpen, setMobileOpen] = React.useState(false);
   const [view, setView] = React.useState<DashboardView>("overview");
   const [, setClock] = React.useState(0);
-  const didAutoCheck = React.useRef(false);
   const [liveVerify, setLiveVerify] = React.useState<MatchVerification | null>(null);
   const [verifyBusy, setVerifyBusy] = React.useState(false);
   const lastVerifiedId = React.useRef<string | null>(null);
@@ -90,12 +89,7 @@ export default function Dashboard() {
     }
   }, []);
 
-  // One auto check on enter — core demo path lights up without hunting
-  React.useEffect(() => {
-    if (!isAuthenticated || !configured || didAutoCheck.current) return;
-    didAutoCheck.current = true;
-    void poll();
-  }, [isAuthenticated, configured, poll]);
+  // Agent ticks auto-start from useAgent — no human "Run check" entrypoint.
 
   const toggleCompact = React.useCallback(() => {
     setIsCompact((prev) => {
@@ -250,7 +244,7 @@ export default function Dashboard() {
                 ? `${window.location.origin}/dashboard`
                 : undefined
             }
-            subtitle="Sign in to run the live agent on TxLINE odds"
+            subtitle="Sign in to watch the autonomous agent on live TxLINE odds"
             title="Open the agent"
           />
         </div>
@@ -587,17 +581,23 @@ export default function Dashboard() {
         </div>
 
         <div className="flex flex-wrap items-center gap-2 border-t border-primary-100 pt-2">
-          <Button
-            className="font-semibold"
-            color="primary"
-            isLoading={loading}
-            radius="full"
+          <Chip
+            classNames={{ content: "text-[0.6rem] font-semibold" }}
+            color="success"
+            radius="sm"
             size="sm"
-            startContent={!loading ? <Icon icon="solar:play-bold" width={14} /> : undefined}
-            onPress={() => poll()}
+            startContent={
+              <span
+                className={cn(
+                  "ml-1 h-1.5 w-1.5 rounded-full bg-success",
+                  livePulse % 2 === 0 ? "opacity-100" : "opacity-40",
+                )}
+              />
+            }
+            variant="flat"
           >
-            Run check
-          </Button>
+            {loading ? "Agent ticking…" : "Autonomous · every 60s"}
+          </Chip>
           <Button
             className="font-semibold"
             color="secondary"
@@ -610,7 +610,7 @@ export default function Dashboard() {
             Proofs
           </Button>
           <span className="text-[0.65rem] text-primary-600/80">
-            TxLINE → Y_net → {isSimMode ? "paper TRADE" : "HOLD/TRADE"}
+            No human in the loop · TxLINE → Y_net → {isSimMode ? "paper TRADE" : "HOLD/TRADE"}
           </span>
         </div>
       </CardBody>
@@ -715,18 +715,23 @@ export default function Dashboard() {
               )}
             </div>
 
-            <Button
-              className="t-btn-press font-semibold"
-              color="primary"
-              isDisabled={!configured}
-              isLoading={loading}
+            <Chip
+              classNames={{ content: "font-semibold text-[0.65rem]" }}
+              color={connected ? "success" : "default"}
               radius="full"
               size="sm"
-              startContent={!loading && <Icon icon="solar:play-bold" width={14} />}
-              onPress={() => poll()}
+              startContent={
+                <span
+                  className={cn(
+                    "ml-1 h-1.5 w-1.5 rounded-full",
+                    connected ? "bg-success animate-pulse" : "bg-default-300",
+                  )}
+                />
+              }
+              variant="flat"
             >
-              Run check
-            </Button>
+              {loading ? "Ticking…" : connected ? "Agent autonomous" : "Agent offline"}
+            </Chip>
           </header>
 
           <main className="min-h-0 flex-1 overflow-y-auto">
@@ -736,12 +741,12 @@ export default function Dashboard() {
                   {error && (
                     <GateCard
                       actionIcon="solar:refresh-linear"
-                      actionLabel={configured ? "Try again" : undefined}
+                      actionLabel={configured ? "Retry agent link" : undefined}
                       description={error}
                       icon="solar:danger-triangle-bold"
                       isActionLoading={loading}
                       onAction={configured ? () => poll() : undefined}
-                      title="Could not run the check"
+                      title="Agent link interrupted"
                       tone="danger"
                     />
                   )}

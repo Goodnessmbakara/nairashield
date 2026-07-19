@@ -69,7 +69,7 @@ const HeroPreview = React.forwardRef<HTMLDivElement, { className?: string }>(
                 <div className="flex flex-1 flex-col items-center justify-center gap-1 py-10 text-center">
                   <p className="text-small text-default-500">No live decisions yet</p>
                   <p className="text-tiny text-default-400">
-                    Sign in, then run checks. Numbers only come from the real agent.
+                    Sign in to watch the autonomous agent. Numbers only come from the live loop.
                   </p>
                 </div>
               )}

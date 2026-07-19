@@ -6,10 +6,10 @@
 - **Live app:** https://retegol.vercel.app
 - **Agent API:** https://retegol-bot.zanbuilds.workers.dev (`GET /health`)
 - **Public repo:** https://github.com/Goodnessmbakara/nairashield
-- **Demo video:** _add Loom/YouTube link after recording_
+- **Demo video:** _placeholder — no link yet. **RECORD DURING SPAIN–ARGENTINA / any live fixture** — production currently returns live TxLINE odds for Spain vs Argentina IN_PLAY with unfunded projection path. Do not invent a fake demo URL._
 
 ## One-liner
-Autonomous market-making agent on Solana: USDC earns Kamino yield by default; a Cloudflare Worker cron reads live TxLINE World Cup odds every minute and only deploys capital to Jupiter Predict when Y_net (spread capture minus yield opportunity cost) clears a hard edge floor.
+Retegol is the only World Cup trading agent that keeps USDC in Kamino by default and only leaves yield when Y_net on live TxLINE odds clears a hard floor before a Jupiter Predict maker order — fail-closed HOLD, no fabricated fills.
 
 ## Core idea (what judges should see working)
 1. **TxLINE in** — fixtures + per-fixture odds snapshots (guest JWT + activated `X-Api-Token`)
@@ -20,15 +20,20 @@ Autonomous market-making agent on Solana: USDC earns Kamino yield by default; a 
 6. **Honesty** — no fabricated odds, balances, or fills; empty feed → HOLD with reason
 
 ## TxLINE endpoints used
+(Source of truth: `src/integrations/txline.ts`)
+
 | Method | Path | Use |
 |--------|------|-----|
 | `POST` | `/auth/guest/start` | Guest JWT |
 | `POST` | `/api/token/activate` | One-time activation (script in repo) |
 | `GET` | `/api/fixtures/snapshot` | Watching / discovery (World Cup CompId 72) |
+| `GET` | `/api/odds/snapshot` | Global odds snapshot (may 404 on devnet) |
 | `GET` | `/api/odds/snapshot/{fixtureId}` | Live consensus odds per match |
 | `GET` | `/api/odds/updates/{fixtureId}` | Historical odds for replays |
 | `GET` | `/api/scores/snapshot/{fixtureId}` | Settlement scores |
 | `GET` | `/api/fixtures/validation?fixtureId=` | Merkle proof for on-chain verify |
+
+Wire notes: PascalCase payloads; empty `[]` intervals → honest HOLD; client sweeps per-fixture when global is empty/404.
 
 Docs: [docs/TXLINE.md](docs/TXLINE.md)
 
@@ -36,12 +41,9 @@ Docs: [docs/TXLINE.md](docs/TXLINE.md)
 **Liked:** Normalized JSON; free World Cup tier; on-chain activation story; fast snapshots.  
 **Friction:** Devnet global odds 404 (per-fixture only); PascalCase wire vs camelCase docs; empty intervals return `[]` which looks like breakage until handled as honest HOLD.
 
-## Demo path (5 min)
+## Demo path
 1. Open https://retegol.vercel.app → sign in  
 2. Dashboard: Watching panel = live TxLINE fixtures  
-3. **Run check** → Agent activity shows HOLD/TRADE + odds + movement  
-4. Optional: Replays → open fixture → TxLINE odds timeline  
-5. Point at `/health` integrations all true  
-6. Fail-closed: show HOLD reason when no in-play odds  
-
-Full script: [DEMO_SCRIPT.md](DEMO_SCRIPT.md)
+3. Agent runs autonomously — decision + Live actions update without a human click  
+4. Point at `/health` integrations  
+5. Fail-closed: show HOLD reason when no in-play odds

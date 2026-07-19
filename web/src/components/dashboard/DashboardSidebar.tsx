@@ -2,7 +2,7 @@
 
 /**
  * App sidebar: brand + views on top; profile + sign out at the bottom.
- * Run check lives only in the top header (once).
+ * Agent loop is autonomous — no human Run check in the primary UI.
  */
 
 import React from "react";

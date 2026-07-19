@@ -1,21 +1,18 @@
 # Retegol
 
-### Second-level capital allocation: yield by default; trade only when edge beats staying in Kamino.
+### The only agent that keeps capital in yield until Y_net clears.
 
 ![Retegol](assets/screenshots/hero.png)
 
-Retegol is an autonomous capital-allocation agent for sports prediction markets
-on Solana — not “odds moved, so trade.” Idle USDC earns **Kamino** yield.
-Every minute a **Cloudflare Worker** reads live **TxLINE** consensus odds as
-fair value, scores **Y_net** (expected maker edge minus yield opportunity
-cost), and only when that hard floor clears does it withdraw and place a
-**Jupiter Predict** maker order. No human in the loop after deploy.
+Retegol is the **only** World Cup trading agent that keeps USDC in **Kamino**
+by default and only leaves yield when **Y_net** on live **TxLINE** odds clears
+a hard floor — then places a **Jupiter Predict** maker order. Fail-closed
+**HOLD**, no fabricated fills. Not “odds moved, so trade.” No human in the
+loop after deploy.
 
 **[Open the live app → retegol.vercel.app](https://retegol.vercel.app)** ·
 [Agent health](https://retegol-bot.zanbuilds.workers.dev/health) ·
-[Technical documentation](./TECH.md) ·
-[Demo script](./DEMO_SCRIPT.md) ·
-[Coding-agent win pack](./agent-context/README.md)
+[Technical documentation](./TECH.md)
 
 Built for the **TxODDS Superteam Earn** hackathon — *Trading Tools and Agents*.
 
@@ -108,7 +105,7 @@ npx vercel --prod
 
 ```bash
 curl -sS https://retegol-bot.zanbuilds.workers.dev/health | jq .
-# Dashboard: sign in → Watching + Run check → Agent activity
+# Dashboard: sign in → Watching + Live actions (agent runs autonomously)
 ```
 
 ---
