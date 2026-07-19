@@ -118,6 +118,7 @@ const StatusPanel = ({ tick, flash }: { tick: Tick; flash?: boolean }) => {
   const chip = statusChip(tick);
   const abort = isTradeAbort(tick);
   const feed = isFeedIssue(tick);
+  const isTrade = tick.decision.action === "TRADE";
   return (
     <div
       className={cn(
