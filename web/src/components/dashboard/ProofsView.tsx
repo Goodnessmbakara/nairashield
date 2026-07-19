@@ -1,9 +1,8 @@
 "use client";
 
 /**
- * Match verification receipt — real TxLINE Merkle proof → on-chain roots PDA
- * → validate_fixture simulate. Evidence stack inspired by ProofXI VAR review;
- * all status comes from the worker (never invented).
+ * Match verification receipt — TxLINE fixture proof → on-chain roots PDA
+ * → validate_fixture. Status comes from the worker only (never invented).
  */
 
 import React from "react";
