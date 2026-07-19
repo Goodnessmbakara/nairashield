@@ -148,6 +148,53 @@ export default function Dashboard() {
     agentStatus?.config?.yieldApy ??
     0.08;
 
+  // Gate numbers for the hero card (Tufte: show the data). Prefer live decision, else projection.
+  const gateDecision =
+    latest?.decision ??
+    agentStatus?.lastTick?.decision ??
+    agentStatus?.lastTick?.projection?.decision;
+  const projectionDecision =
+    latest?.projection?.decision ?? agentStatus?.lastTick?.projection?.decision;
+  const yNet =
+    typeof gateDecision?.yNet === "number"
+      ? gateDecision.yNet
+      : typeof projectionDecision?.yNet === "number"
+        ? projectionDecision.yNet
+        : undefined;
+  const edge =
+    typeof gateDecision?.edge === "number"
+      ? gateDecision.edge
+      : typeof projectionDecision?.edge === "number"
+        ? projectionDecision.edge
+        : undefined;
+  const makerMargin =
+    typeof gateDecision?.makerMargin === "number"
+      ? gateDecision.makerMargin
+      : typeof projectionDecision?.makerMargin === "number"
+        ? projectionDecision.makerMargin
+        : typeof agentStatus?.config?.makerMargin === "number"
+          ? agentStatus.config.makerMargin
+          : undefined;
+  const minEdge = agentStatus?.config?.minEdge;
+  const capitalMode = agentStatus?.capital ?? "unknown";
+  const isSimMode =
+    capitalMode === "simulation" ||
+    Boolean(latest?.execution?.simulated) ||
+    /SIMULATION/i.test(rawReason);
+  const isUnfunded =
+    capitalMode === "unfunded" ||
+    isSimMode ||
+    Boolean(latest?.projection ?? agentStatus?.lastTick?.projection) ||
+    /no live kamino capital/i.test(rawReason);
+  const simBankroll =
+    typeof agentStatus?.simBankrollUsdc === "number"
+      ? agentStatus.simBankrollUsdc
+      : typeof latest?.execution?.simBankrollUsdc === "number"
+        ? latest.execution.simBankrollUsdc
+        : undefined;
+  const integrations = agentStatus?.integrations ?? {};
+  const integrationOrder = ["txline", "jupiter", "kamino", "wallet", "ai"] as const;
+
   // Self-verify current fixture (no human click) — agent cron also verifies every tick
   const fixtureIdForVerify = market?.matchId ?? null;
   React.useEffect(() => {
@@ -228,6 +275,16 @@ export default function Dashboard() {
       setupReason!,
     );
 
+  // Deming: common-cause HOLD (expected system behavior) vs special-cause (setup/error)
+  const isCommonCauseHold =
+    !isTrade &&
+    !needsSetup &&
+    !error &&
+    (isUnfunded ||
+      /no live odds|not in-play|not in play|next fixture|stays in yield|keep capital/i.test(
+        rawReason,
+      ));
+
   /** THE product moment — color-coded decision on live odds */
   const decisionHero = (
     <Card
@@ -249,7 +306,68 @@ export default function Dashboard() {
             : "bg-gradient-to-r from-primary-400 via-primary-500 to-secondary-500",
         )}
       />
-      <CardBody className="gap-4 p-5 sm:p-6">
+      <CardBody className="gap-2.5 p-3 sm:p-4">
+        {/* Status strip — integrations + capital (tight) */}
+        <div className="flex flex-wrap items-center gap-1">
+          {integrationOrder.map((key) => {
+            const on = integrations[key];
+            if (on === undefined) return null;
+            return (
+              <Chip
+                key={key}
+                classNames={{ content: "text-[0.55rem] font-medium uppercase" }}
+                color={on ? "success" : "danger"}
+                radius="sm"
+                size="sm"
+                variant="flat"
+              >
+                {key}
+              </Chip>
+            );
+          })}
+          <Chip
+            classNames={{ content: "text-[0.55rem] font-medium" }}
+            color={
+              capitalMode === "funded"
+                ? "success"
+                : capitalMode === "simulation" || isSimMode
+                  ? "secondary"
+                  : capitalMode === "unfunded"
+                    ? "warning"
+                    : "default"
+            }
+            radius="sm"
+            size="sm"
+            variant="flat"
+          >
+            {capitalMode === "simulation" || isSimMode
+              ? `paper · $${(simBankroll ?? 100).toFixed(0)}`
+              : `capital · ${capitalMode}`}
+          </Chip>
+          {(isSimMode || /SIMULATION/i.test(rawReason)) && (
+            <Chip
+              classNames={{ content: "text-[0.55rem] font-semibold" }}
+              color="secondary"
+              radius="sm"
+              size="sm"
+              variant="solid"
+            >
+              SIM · real TxLINE
+            </Chip>
+          )}
+          {isCommonCauseHold && !isTrade && (
+            <Chip
+              classNames={{ content: "text-[0.55rem] font-medium" }}
+              color="default"
+              radius="sm"
+              size="sm"
+              variant="flat"
+            >
+              expected HOLD
+            </Chip>
+          )}
+        </div>
+
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div>
             <p className="text-tiny font-semibold uppercase tracking-wide text-primary">
@@ -292,9 +410,50 @@ export default function Dashboard() {
           </div>
         </div>
 
-        <p className="text-medium leading-7 text-foreground sm:text-large">
+        <p className="text-small leading-6 text-foreground sm:text-medium">
           {reason || "Run a check to load the latest decision from live TxLINE odds."}
         </p>
+
+        {/* Gates — compact data row */}
+        {(typeof yNet === "number" ||
+          typeof edge === "number" ||
+          typeof makerMargin === "number" ||
+          typeof minEdge === "number") && (
+          <div className="grid grid-cols-4 gap-1.5">
+            {typeof yNet === "number" && (
+              <div className="rounded-medium border border-default-200 bg-content2 px-2 py-1.5">
+                <p className="text-[0.55rem] font-medium uppercase text-default-400">Y_net</p>
+                <p className="font-mono text-small font-semibold tabular-nums text-foreground">
+                  ${yNet.toFixed(2)}
+                </p>
+              </div>
+            )}
+            {typeof edge === "number" && (
+              <div className="rounded-medium border border-default-200 bg-content2 px-2 py-1.5">
+                <p className="text-[0.55rem] font-medium uppercase text-default-400">Edge</p>
+                <p className="font-mono text-small font-semibold tabular-nums text-foreground">
+                  {(edge * 100).toFixed(1)}%
+                </p>
+              </div>
+            )}
+            {typeof minEdge === "number" && (
+              <div className="rounded-medium border border-default-200 bg-content2 px-2 py-1.5">
+                <p className="text-[0.55rem] font-medium uppercase text-default-400">minEdge</p>
+                <p className="font-mono text-small font-semibold tabular-nums text-foreground">
+                  {(minEdge * 100).toFixed(0)}%
+                </p>
+              </div>
+            )}
+            {typeof makerMargin === "number" && (
+              <div className="rounded-medium border border-default-200 bg-content2 px-2 py-1.5">
+                <p className="text-[0.55rem] font-medium uppercase text-default-400">Margin</p>
+                <p className="font-mono text-small font-semibold tabular-nums text-foreground">
+                  {(makerMargin * 100).toFixed(0)}%
+                </p>
+              </div>
+            )}
+          </div>
+        )}
 
         <div className="rounded-medium border border-primary-100 bg-primary-50/60 px-4 py-3">
           <p className="text-tiny font-medium text-primary-600">Market</p>
@@ -318,7 +477,7 @@ export default function Dashboard() {
         </div>
 
         {odds.length > 0 ? (
-          <div className="grid grid-cols-3 gap-2">
+          <div className="grid grid-cols-3 gap-1.5">
             {odds.map(([k, v], i) => {
               const tones = [
                 "border-primary-200 bg-primary-50",
@@ -331,20 +490,20 @@ export default function Dashboard() {
                 <div
                   key={k}
                   className={cn(
-                    "flex flex-col items-center rounded-medium border px-2 py-3",
+                    "flex flex-col items-center rounded-medium border px-1.5 py-2",
                     tones[i % 3],
                   )}
                 >
                   {isDraw ? (
-                    <span className="flex h-5 w-7 items-center justify-center rounded-[2px] bg-secondary-200 text-[0.55rem] font-bold text-secondary-800">
+                    <span className="flex h-4 w-6 items-center justify-center rounded-[2px] bg-secondary-200 text-[0.5rem] font-bold text-secondary-800">
                       X
                     </span>
                   ) : (
-                    <TeamFlag name={k} width={28} height={20} />
+                    <TeamFlag name={k} width={22} height={15} />
                   )}
                   <span
                     className={cn(
-                      "mt-1.5 text-[0.65rem] font-medium uppercase",
+                      "mt-1 text-[0.55rem] font-medium uppercase",
                       textTones[i % 3],
                     )}
                   >
@@ -352,7 +511,7 @@ export default function Dashboard() {
                   </span>
                   <span
                     className={cn(
-                      "mt-0.5 font-mono text-xl font-semibold tabular-nums",
+                      "font-mono text-medium font-semibold tabular-nums",
                       textTones[i % 3],
                     )}
                   >
@@ -364,97 +523,69 @@ export default function Dashboard() {
           </div>
         ) : (
           <p className="text-tiny text-default-500">
-            Odds appear here when TxLINE returns a usable snapshot for the active fixture.
+            Odds appear when TxLINE returns a usable snapshot.
           </p>
         )}
 
         {movement.length > 0 && (
-          <div className="flex flex-col gap-2">
-            <p className="text-tiny font-semibold text-warning-700">Sharp movement (&gt;3%)</p>
-            {movement.map((m) => (
-              <div
+          <div className="flex flex-wrap gap-1.5">
+            <span className="text-[0.6rem] font-semibold text-warning-700">Sharp &gt;3%</span>
+            {movement.slice(0, 3).map((m) => (
+              <span
                 key={m.outcome}
-                className="flex items-center justify-between rounded-medium border border-warning-100 bg-warning-50 px-3 py-2"
+                className="rounded-full bg-warning-50 px-2 py-0.5 text-[0.65rem] tabular-nums text-default-700 ring-1 ring-warning-100"
               >
-                <span className="flex min-w-0 items-center gap-2 text-small font-medium text-foreground">
-                  <TeamFlag name={m.outcome} width={20} height={14} />
-                  {m.outcome}
-                </span>
-                <span className="text-tiny tabular-nums text-default-600">
-                  {m.fromOdds} → {m.toOdds}{" "}
-                  <span
-                    className={
-                      m.direction === "shortening" ? "font-semibold text-success-600" : "text-warning-600"
-                    }
-                  >
-                    ({m.changePct > 0 ? "+" : ""}
-                    {Math.round(m.changePct * 1000) / 10}%)
-                  </span>
-                </span>
-              </div>
+                {m.outcome} {m.fromOdds}→{m.toOdds} (
+                {m.changePct > 0 ? "+" : ""}
+                {Math.round(m.changePct * 1000) / 10}%)
+              </span>
             ))}
           </div>
         )}
 
-        {/* Auto on-chain VAR — runs with every agent tick + background refresh */}
+        {/* VAR — single compact row */}
         <div
-          className={`rounded-medium border px-3 py-2.5 ${
+          className={cn(
+            "flex flex-wrap items-center gap-2 rounded-medium border px-2.5 py-1.5",
             verifyBusy
               ? "border-primary-200 bg-primary-50"
               : verification?.ok
                 ? "border-success-200 bg-success-50"
                 : verification
                   ? "border-warning-200 bg-warning-50"
-                  : "border-primary-100 bg-primary-50/40"
-          }`}
-        >
-          <div className="flex flex-wrap items-center gap-2">
-            {verifyBusy ? (
-              <Chip color="primary" size="sm" variant="flat" classNames={{ content: "text-[0.65rem] font-bold" }}>
-                VAR · CHECKING
-              </Chip>
-            ) : (
-              <Chip
-                color={verification?.ok ? "success" : verification ? "warning" : "primary"}
-                size="sm"
-                variant="flat"
-                classNames={{ content: "text-[0.65rem] font-bold" }}
-              >
-                {verification?.ok
-                  ? "VAR · CONFIRMED"
-                  : verification
-                    ? "VAR · BLOCKED"
-                    : "VAR · AUTO"}
-              </Chip>
-            )}
-            {verification && (
-              <span className="text-tiny text-default-600">
-                {verification.stage} · {verification.cluster}
-              </span>
-            )}
-            <span className="text-[0.65rem] font-medium uppercase tracking-wide text-primary-500">
-              no human · self-verify
-            </span>
-          </div>
-          <p className="mt-1 text-tiny leading-5 text-default-600">
-            {verifyBusy
-              ? "Autonomous on-chain check: TxLINE proof → roots PDA → validate_fixture…"
-              : verification?.reason ||
-                "Every agent tick self-verifies the match on Solana before any TRADE can leave yield."}
-          </p>
-          {verification?.explorerUrl && (
-            <a
-              className="mt-1 inline-block text-tiny font-semibold text-primary underline-offset-2 hover:underline"
-              href={verification.explorerUrl}
-              target="_blank"
-              rel="noopener noreferrer"
-            >
-              Roots PDA on Explorer
-            </a>
+                  : "border-primary-100 bg-primary-50/40",
           )}
+        >
+          <Chip
+            color={
+              verifyBusy
+                ? "primary"
+                : verification?.ok
+                  ? "success"
+                  : verification
+                    ? "warning"
+                    : "primary"
+            }
+            size="sm"
+            variant="flat"
+            classNames={{ content: "text-[0.6rem] font-bold" }}
+          >
+            {verifyBusy
+              ? "VAR · …"
+              : verification?.ok
+                ? "VAR · OK"
+                : verification
+                  ? "VAR · SOFT"
+                  : "VAR"}
+          </Chip>
+          <span className="min-w-0 flex-1 truncate text-[0.65rem] text-default-600">
+            {verifyBusy
+              ? "Checking on-chain…"
+              : verification?.reason || "Self-verify on tick"}
+          </span>
         </div>
 
-        <div className="flex flex-wrap items-center gap-2 border-t border-primary-100 pt-3">
+        <div className="flex flex-wrap items-center gap-2 border-t border-primary-100 pt-2">
           <Button
             className="font-semibold"
             color="primary"
@@ -475,10 +606,10 @@ export default function Dashboard() {
             variant="flat"
             onPress={() => changeView("proofs")}
           >
-            VAR receipt
+            Proofs
           </Button>
-          <span className="text-tiny text-primary-600/80">
-            Cron: TxLINE → self-verify on Solana → Y_net → HOLD or TRADE
+          <span className="text-[0.65rem] text-primary-600/80">
+            TxLINE → Y_net → {isSimMode ? "paper TRADE" : "HOLD/TRADE"}
           </span>
         </div>
       </CardBody>
@@ -597,21 +728,32 @@ export default function Dashboard() {
               )}
 
               {view === "overview" && (
-                <div className="flex flex-col gap-4">
-                  <div className="grid grid-cols-1 gap-4 lg:grid-cols-5">
-                    <div className="lg:col-span-3">{decisionHero}</div>
-                    <div className="lg:col-span-2">
-                      <WatchingPanel />
+                <div className="flex flex-col gap-3 lg:h-[calc(100dvh-5.5rem)] lg:min-h-0 lg:overflow-hidden">
+                  {/*
+                    Above-the-fold layout: decision left, watching + recent checks right.
+                    No long vertical stack that buries Recent checks.
+                  */}
+                  <div className="grid min-h-0 flex-1 grid-cols-1 gap-3 lg:grid-cols-12 lg:overflow-hidden">
+                    <div className="min-h-0 lg:col-span-7 lg:overflow-y-auto lg:pr-1">
+                      {decisionHero}
+                    </div>
+                    <div className="flex min-h-0 flex-col gap-3 lg:col-span-5 lg:overflow-hidden">
+                      <div className="shrink-0">
+                        <WatchingPanel />
+                      </div>
+                      <div className="min-h-0 flex-1 overflow-y-auto">
+                        <DecisionFeed
+                          compact
+                          error={null}
+                          lastSyncedAt={lastSyncedAt}
+                          liveFlashId={liveFlashId}
+                          liveReason={liveReason}
+                          loading={loading}
+                          ticks={ticks}
+                        />
+                      </div>
                     </div>
                   </div>
-                  <DecisionFeed
-                    error={null}
-                    lastSyncedAt={lastSyncedAt}
-                    liveFlashId={liveFlashId}
-                    liveReason={liveReason}
-                    loading={loading}
-                    ticks={ticks}
-                  />
                 </div>
               )}
 

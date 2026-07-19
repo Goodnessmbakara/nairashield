@@ -23,11 +23,13 @@ export async function appendTick(env: Env, tick: AgentTickResult): Promise<void>
 
 	// Do not persist a wall of identical idle HOLDs — one current status is enough.
 	// Always keep ticks that carry market/odds or movement (demo + movement history).
+	// Always keep simulated trades and ticks with market odds (demo path).
+	const hasExecution = Boolean(tick.execution);
 	const uneventful =
 		last &&
 		tick.decision.action === "HOLD" &&
 		last.decision.action === "HOLD" &&
-		!tick.execution &&
+		!hasExecution &&
 		!tick.movement?.length &&
 		!tick.market?.odds &&
 		tick.status !== "Error" &&

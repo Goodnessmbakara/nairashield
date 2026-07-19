@@ -134,6 +134,9 @@ export type TradeOrder = {
 	error?: string;
 };
 
+/** Virtual paper capital for hackathon simulation (real TxLINE odds still required). */
+export type SimMode = "off" | "paper";
+
 /** Open maker book awaiting settlement (PRD Settlement State). */
 export type OpenPosition = {
 	id: string;
@@ -184,6 +187,13 @@ export type TickExecution = {
 	settlements?: SettlementResult[];
 	/** Early closes performed by the TP/SL risk manager this tick */
 	riskExits?: RiskExit[];
+	/**
+	 * True when this fill used virtual bankroll (no live Kamino/Jupiter).
+	 * Odds and fixtures are still live TxLINE — only capital is paper.
+	 */
+	simulated?: boolean;
+	/** Remaining virtual USDC after this sim tick */
+	simBankrollUsdc?: number;
 };
 
 export type SettlementResult = {
@@ -273,7 +283,9 @@ export type AgentStatus = {
 	/** Live Kamino USDC supply APY when readable (even if unfunded). */
 	liveApy?: number | null;
 	/** Honest capital state for the dashboard. */
-	capital: "funded" | "unfunded" | "unknown";
+	capital: "funded" | "unfunded" | "unknown" | "simulation";
+	/** Paper bankroll when capital === "simulation" (hackathon path). */
+	simBankrollUsdc?: number;
 	openPositions: OpenPosition[];
 	lastTick?: AgentTickResult | null;
 	/** Most recent tick status — written to KV on every tick, including idle HOLDs not stored in DB. */

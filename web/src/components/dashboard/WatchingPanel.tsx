@@ -1,7 +1,7 @@
 "use client";
 
 import React from "react";
-import { Card, CardBody, Chip, Link, Tooltip } from "@heroui/react";
+import { Card, CardBody, Chip, Tooltip } from "@heroui/react";
 import { Icon } from "@iconify/react";
 import { fetchFixtures, type WatchedFixture } from "../../lib/agent";
 
@@ -120,7 +120,7 @@ export default function WatchingPanel() {
   const list = (fixtures ?? [])
     .slice()
     .sort((a, b) => Number(b.live) - Number(a.live) || a.start - b.start)
-    .slice(0, 8);
+    .slice(0, 4);
 
   const liveCount = list.filter((f) => f.live).length;
 
@@ -129,18 +129,18 @@ export default function WatchingPanel() {
       id="watching"
       className="scroll-mt-4 border border-primary-100 bg-content1 shadow-sm shadow-primary-100/40 dark:border-default-100"
     >
-      <CardBody className="gap-3 p-4">
+      <CardBody className="gap-2 p-3">
         <div className="flex items-start justify-between gap-2">
           <div className="flex items-center gap-2">
             <div className="flex rounded-medium border border-primary-100 bg-primary-50 p-1.5">
               <Icon className="text-primary" icon="solar:eye-bold" width={16} />
             </div>
             <div>
-              <h2 className="font-display text-medium font-semibold leading-tight text-foreground">
+              <h2 className="font-display text-small font-semibold leading-tight text-foreground">
                 Watching
               </h2>
-              <p className="text-tiny leading-tight text-primary-600/70">
-                TxLINE · Solana-anchored odds
+              <p className="text-[0.65rem] leading-tight text-primary-600/70">
+                Live TxLINE fixtures
               </p>
             </div>
           </div>
@@ -155,20 +155,6 @@ export default function WatchingPanel() {
             </Chip>
           </div>
         </div>
-
-        <p className="text-[0.7rem] leading-4 text-default-500">
-          Each tick the agent fetches a TxLINE Merkle proof and runs{" "}
-          <span className="font-medium text-default-600">validate_fixture</span> against the
-          on-chain roots PDA — it will not trade an unverified match.{" "}
-          <Link
-            className="text-[0.7rem]"
-            href="https://github.com/Goodnessmbakara/nairashield/blob/main/docs/TXLINE.md"
-            size="sm"
-            isExternal
-          >
-            How verification works
-          </Link>
-        </p>
 
         {fixtures === null ? (
           <div className="flex items-center justify-center gap-2 py-6 text-default-400">

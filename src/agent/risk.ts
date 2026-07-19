@@ -21,13 +21,15 @@ import type { AgentConfig } from "./config";
 import type { Env, MarketOdds, RiskExit } from "../types";
 import { listOpenPositions, updatePosition } from "./store";
 import { closePosition } from "../integrations/jupiter";
+import { isSimPosition } from "./simulation";
 
 export async function manageOpenPositions(
 	env: Env,
 	config: AgentConfig,
 	market: MarketOdds,
 ): Promise<RiskExit[]> {
-	const open = await listOpenPositions(env);
+	// Paper books are not closed via Jupiter — sim settles on TxLINE scores.
+	const open = (await listOpenPositions(env)).filter((p) => !isSimPosition(p));
 	if (open.length === 0) return [];
 
 	const exits: RiskExit[] = [];

@@ -41,6 +41,12 @@ import type { AgentConfig } from "./config";
 import { sweepDeposits } from "../account/sweep";
 import { processQueuedWithdrawals } from "../account/autowithdraw";
 import { recordSnapshot, getPoolTotalUsdc } from "../account/ledger";
+import {
+	executeSimTrade,
+	loadSimBankroll,
+	settleSimPositions,
+	SIM_STARTING_BANKROLL,
+} from "./simulation";
 
 export async function runAgentTick(env: Env): Promise<AgentTickResult> {
 	const started = Date.now();
@@ -132,39 +138,110 @@ export async function runAgentTick(env: Env): Promise<AgentTickResult> {
 		const openBooks = await listOpenPositions(env);
 		const booksFull = openBooks.length >= config.maxOpenPositions;
 
-		// Missing live capital → HOLD, do not invent a vault balance.
-		// Still run the real brain on the real odds as a dry-run projection so the
-		// decision logic is observable before any capital is deployed.
+		// Missing live capital → paper simulation on REAL TxLINE odds.
+		// Judges allow simulation; we never invent markets — only virtual bankroll.
 		if (!yieldPosition) {
-			const projection = await buildProjection(env, config, market, booksFull);
-			const wouldTrade = projection?.decision.action === "TRADE";
+			const simSettlements = await settleSimPositions(env, config, market);
+			const allSettlements = [...settlements, ...simSettlements.filter((s) => s.success)];
+			const simBooks = (await listOpenPositions(env)).length >= config.maxOpenPositions;
+
+			const simBank = await loadSimBankroll(env);
+			const simYield = {
+				protocol: "kamino" as const,
+				asset: "USDC" as const,
+				balanceUsdc: simBank.bankrollUsdc,
+				apy: config.yieldApy,
+				updatedAt: new Date().toISOString(),
+				source: "projection" as const,
+			};
+
+			let decision = await decide(env, {
+				market,
+				yieldPosition: simYield,
+				config,
+				booksFull: simBooks,
+			});
+
+			// Soft verify in sim: note failure but do not block the paper TRADE
+			// (live path still hard-blocks). Odds remain real TxLINE.
+			if (decision.action === "TRADE" && !verification.ok) {
+				decision = {
+					...decision,
+					reason: `${decision.reason} [sim: on-chain VAR soft — ${verification.reason}]`,
+				};
+			}
+
+			let status: AgentTickResult["status"] = allSettlements.some((s) => s.success)
+				? "Settled"
+				: "Skipped";
+			let execution: TickExecution | undefined =
+				allSettlements.length || riskExits.length
+					? {
+							settlements: allSettlements.length ? allSettlements : undefined,
+							riskExits: riskExits.length ? riskExits : undefined,
+							simulated: true,
+							simBankrollUsdc: simBank.bankrollUsdc,
+						}
+					: { simulated: true, simBankrollUsdc: simBank.bankrollUsdc };
+
+			if (decision.action === "TRADE") {
+				const sim = await executeSimTrade(env, config, decision, market);
+				execution = {
+					...sim.execution,
+					settlements: allSettlements.length ? allSettlements : undefined,
+					riskExits: riskExits.length ? riskExits : undefined,
+				};
+				if (sim.opened) {
+					status = "Executed";
+					decision = {
+						...decision,
+						reason: `SIMULATION (real TxLINE odds, paper capital $${SIM_STARTING_BANKROLL} start) — ${decision.reason}`,
+						yNet: decision.yNet,
+						edge: decision.edge,
+						yieldApy: config.yieldApy,
+						makerMargin: config.makerMargin,
+					};
+				} else {
+					status = "Aborted";
+					decision = {
+						action: "HOLD",
+						reason: `Simulation held — ${sim.execution.abortReason || "could not open paper book"}. Live odds still from TxLINE.`,
+						team: decision.team,
+						side: decision.side,
+						spread: decision.spread,
+						fairOdds: decision.fairOdds,
+						edge: decision.edge,
+						yNet: decision.yNet,
+						yieldApy: config.yieldApy,
+						makerMargin: config.makerMargin,
+					};
+				}
+			} else {
+				decision = {
+					...decision,
+					reason: `SIMULATION (real TxLINE, paper bankroll $${simBank.bankrollUsdc.toFixed(2)}) — ${decision.reason}`,
+					yieldApy: config.yieldApy,
+					makerMargin: config.makerMargin,
+				};
+			}
+
 			return finishTick({
 				id,
 				started,
 				config,
 				env,
 				market,
-				// omit yield — never fabricate a USDC balance
-				decision: {
-					action: "HOLD",
-					reason: projection
-						? `No live Kamino capital, so nothing is executed. On the live odds the agent ${
-								wouldTrade
-									? `would place a maker quote — ${projection.decision.reason}`
-									: `would also hold — ${projection.decision.reason}`
-							}`
-						: "No live Kamino position. Fund the agent wallet and deposit USDC before trading.",
-					yieldApy: config.yieldApy,
-					makerMargin: config.makerMargin,
-				},
-				projection,
+				// Paper yield snapshot only (source projection) — never labeled live
+				yieldPosition: simYield,
+				decision,
 				movement,
 				verification,
-				status: settlements.some((s) => s.success) ? "Settled" : "Skipped",
-				execution:
-					settlements.length || riskExits.length
-						? { settlements: settlements.length ? settlements : undefined, riskExits: riskExits.length ? riskExits : undefined }
-						: undefined,
+				status,
+				execution,
+				projection: {
+					decision,
+					hypotheticalCapitalUsdc: simBank.bankrollUsdc,
+				},
 			});
 		}
 
@@ -239,8 +316,8 @@ export async function runAgentTick(env: Env): Promise<AgentTickResult> {
 			if (exec.order?.status === "placed" && !exec.aborted) {
 				status = "Executed";
 			} else {
-				// Safe failure path for the app: never leave a "TRADE" that didn't land.
-				// Recover capital if we already withdrew, then report HOLD + why.
+				// Live path failed — recover capital, then paper-fill on the same
+				// real TxLINE decision so judges still see the full agent loop.
 				status = "Aborted";
 				execution.aborted = true;
 				execution.abortReason =
@@ -252,7 +329,25 @@ export async function runAgentTick(env: Env): Promise<AgentTickResult> {
 					execution.redepositTxid = redeposit.txid;
 				}
 
-				decision = decisionAfterTradeFailure(intended, execution);
+				const sim = await executeSimTrade(env, config, intended, market);
+				if (sim.opened) {
+					status = "Executed";
+					execution = {
+						...execution,
+						...sim.execution,
+						// Keep live abort context for honesty
+						abortReason: `Live execution failed (${execution.abortReason}); completed as SIMULATION on real TxLINE odds.`,
+						aborted: false,
+						settlements: settlements.length ? settlements : undefined,
+						riskExits: riskExits.length ? riskExits : undefined,
+					};
+					decision = {
+						...intended,
+						reason: `SIMULATION after live fail — ${intended.reason} [live: ${execution.abortReason}]`,
+					};
+				} else {
+					decision = decisionAfterTradeFailure(intended, execution);
+				}
 			}
 		}
 
@@ -524,11 +619,14 @@ export async function getAgentStatus(env: Env): Promise<AgentStatus> {
 	}
 
 	const livePos = position?.source === "live" ? position : undefined;
+	const simBank = livePos ? null : await loadSimBankroll(env);
 	const capital: AgentStatus["capital"] = livePos
 		? "funded"
-		: flags.wallet
-			? "unfunded"
-			: "unknown";
+		: flags.txline
+			? "simulation"
+			: flags.wallet
+				? "unfunded"
+				: "unknown";
 
 	let currentStatus: { action: string; reason: string; at: string } | undefined;
 	try {
@@ -539,13 +637,14 @@ export async function getAgentStatus(env: Env): Promise<AgentStatus> {
 	}
 
 	return {
-		ok: ready,
-		mode: ready ? "live" : "not_ready",
+		ok: ready || flags.txline,
+		mode: livePos ? (ready ? "live" : "not_ready") : flags.txline ? "live" : "not_ready",
 		integrations: flags,
 		position: livePos,
 		walletUsdc,
 		liveApy,
 		capital,
+		simBankrollUsdc: simBank?.bankrollUsdc,
 		openPositions,
 		lastTick,
 		currentStatus,

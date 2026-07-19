@@ -14,13 +14,15 @@ import { listOpenPositions, updatePosition } from "./store";
 import { depositYield } from "../integrations/kamino";
 import { fetchOrderSettlement } from "../integrations/jupiter";
 import { round4 } from "./math";
+import { isSimPosition } from "./simulation";
 
 export async function settleDuePositions(
 	env: Env,
 	config: AgentConfig,
 	market: MarketOdds | null,
 ): Promise<SettlementResult[]> {
-	const open = await listOpenPositions(env);
+	// Live Jupiter settlement only — paper books settle via settleSimPositions.
+	const open = (await listOpenPositions(env)).filter((p) => !isSimPosition(p));
 	if (open.length === 0) return [];
 
 	const results: SettlementResult[] = [];

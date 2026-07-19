@@ -122,11 +122,126 @@ function YieldBlock({ tick }: { tick: Tick }) {
   );
 }
 
+/** Unfunded dry-run — reason text and/or explicit projection payload. */
+function isUnfundedProjection(tick: Tick): boolean {
+  if (tick.projection) return true;
+  const r = tick.decision.reason.toLowerCase();
+  return (
+    r.includes("no live kamino capital") ||
+    r.includes("no live kamino position") ||
+    r.includes("nothing is executed")
+  );
+}
+
+/** Prefer live decision gates; fall back to projection.decision when unfunded. */
+function gateNumbers(tick: Tick) {
+  const d = tick.decision;
+  const p = tick.projection?.decision;
+  return {
+    yNet: typeof d.yNet === "number" ? d.yNet : p?.yNet,
+    edge: typeof d.edge === "number" ? d.edge : p?.edge,
+    makerMargin: typeof d.makerMargin === "number" ? d.makerMargin : p?.makerMargin,
+    yieldApy: typeof d.yieldApy === "number" ? d.yieldApy : p?.yieldApy,
+    fairOdds: typeof d.fairOdds === "number" ? d.fairOdds : p?.fairOdds,
+  };
+}
+
+function pctLabel(fraction: number, digits = 2): string {
+  return `${(fraction * 100).toFixed(digits)}%`;
+}
+
+/** Compact Y_net / edge / margin / APY row — only renders fields that exist. */
+function GatesBlock({ tick }: { tick: Tick }) {
+  const g = gateNumbers(tick);
+  const items: Array<{ key: string; label: string; value: string }> = [];
+  if (typeof g.yNet === "number") {
+    items.push({
+      key: "ynet",
+      label: "Y_net",
+      value: `$${g.yNet.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 4 })}`,
+    });
+  }
+  if (typeof g.edge === "number") {
+    items.push({ key: "edge", label: "Edge", value: pctLabel(g.edge) });
+  }
+  if (typeof g.makerMargin === "number") {
+    items.push({ key: "margin", label: "Margin", value: pctLabel(g.makerMargin) });
+  }
+  if (typeof g.yieldApy === "number") {
+    items.push({ key: "apy", label: "Yield APY", value: pctLabel(g.yieldApy) });
+  }
+  if (items.length === 0) return null;
+  return (
+    <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-tiny text-default-500">
+      <span className="font-medium text-default-400">Gates</span>
+      {items.map((it) => (
+        <span key={it.key}>
+          {it.label}{" "}
+          <span className="font-medium tabular-nums text-default-700">{it.value}</span>
+        </span>
+      ))}
+    </div>
+  );
+}
+
+/** Largest sharp move when movement[] is present. */
+function MovementBlock({ tick }: { tick: Tick }) {
+  const moves = tick.movement;
+  if (!moves?.length) return null;
+  const top = [...moves].sort(
+    (a, b) => Math.abs(b.changePct) - Math.abs(a.changePct),
+  )[0]!;
+  const pct = Math.round(top.changePct * 1000) / 10;
+  return (
+    <div className="mt-2 flex flex-wrap items-center gap-2 text-tiny">
+      <span className="font-medium text-warning-700">Movement</span>
+      <span className="text-default-600">{top.outcome}</span>
+      <span className="tabular-nums text-default-500">
+        {top.fromOdds} → {top.toOdds}
+      </span>
+      <span
+        className={cn(
+          "font-medium tabular-nums",
+          top.direction === "shortening" ? "text-success-600" : "text-warning-600",
+        )}
+      >
+        {pct > 0 ? "+" : ""}
+        {pct}% · {top.direction}
+      </span>
+      {moves.length > 1 && (
+        <span className="text-default-400">+{moves.length - 1} more</span>
+      )}
+    </div>
+  );
+}
+
+function ProjectionChip({ tick }: { tick: Tick }) {
+  if (!isUnfundedProjection(tick)) return null;
+  const projectedTrade =
+    tick.projection?.decision?.action === "TRADE" ||
+    /would place a maker quote/i.test(tick.decision.reason);
+  return (
+    <Chip
+      classNames={{ content: "font-medium text-[0.65rem]" }}
+      color="secondary"
+      radius="sm"
+      size="sm"
+      variant="flat"
+    >
+      {projectedTrade ? "Projection TRADE (unfunded)" : "Projection (unfunded)"}
+    </Chip>
+  );
+}
+
 const StatusPanel = ({ tick, flash }: { tick: Tick; flash?: boolean }) => {
   const chip = statusChip(tick);
   const abort = isTradeAbort(tick);
   const feed = isFeedIssue(tick);
   const isTrade = tick.decision.action === "TRADE";
+  const gates = gateNumbers(tick);
+  const team = tick.decision.team ?? tick.projection?.decision?.team;
+  const side = tick.decision.side ?? tick.projection?.decision?.side;
+  const spread = tick.decision.spread ?? tick.projection?.decision?.spread;
   return (
     <div
       className={cn(
@@ -155,6 +270,7 @@ const StatusPanel = ({ tick, flash }: { tick: Tick; flash?: boolean }) => {
         >
           {chip.label}
         </Chip>
+        <ProjectionChip tick={tick} />
         {abort && tick.execution?.redeposited && (
           <Chip
             classNames={{ content: "font-medium text-[0.65rem]" }}
@@ -184,33 +300,31 @@ const StatusPanel = ({ tick, flash }: { tick: Tick; flash?: boolean }) => {
       <p className="mt-3 text-small leading-6 text-default-700">
         {displayAgentReason(tick.decision.reason)}
       </p>
+      <GatesBlock tick={tick} />
+      <MovementBlock tick={tick} />
       {tick.execution?.abortReason && (
         <p className="mt-2 text-tiny leading-5 text-warning-700">
           Failure: {tick.execution.abortReason}
         </p>
       )}
-      {(tick.decision.team || typeof tick.decision.spread === "number") && (
+      {(team || typeof spread === "number" || typeof gates.fairOdds === "number") && (
         <div className="mt-3 flex flex-wrap items-center gap-2 border-t border-default-100 pt-3">
-          {tick.decision.team && (
+          {team && (
             <Chip color="primary" radius="sm" size="sm" variant="flat">
-              {tick.decision.team}
-              {tick.decision.side ? ` · ${tick.decision.side}` : ""}
+              {team}
+              {side ? ` · ${side}` : ""}
             </Chip>
           )}
-          {typeof tick.decision.spread === "number" && (
+          {typeof spread === "number" && (
             <span className="text-tiny text-default-500">
               Odds / spread{" "}
-              <span className="font-medium tabular-nums text-default-700">
-                {tick.decision.spread}
-              </span>
+              <span className="font-medium tabular-nums text-default-700">{spread}</span>
             </span>
           )}
-          {typeof tick.decision.fairOdds === "number" && (
+          {typeof gates.fairOdds === "number" && (
             <span className="text-tiny text-default-500">
               fair{" "}
-              <span className="font-medium tabular-nums text-default-700">
-                {tick.decision.fairOdds}
-              </span>
+              <span className="font-medium tabular-nums text-default-700">{gates.fairOdds}</span>
             </span>
           )}
         </div>
@@ -287,6 +401,7 @@ const DecisionCard = React.forwardRef<
           >
             {chip.label}
           </Chip>
+          <ProjectionChip tick={tick} />
           {tick.market?.match && (
             <span className="truncate text-tiny text-default-400">{tick.market.match}</span>
           )}
@@ -306,6 +421,8 @@ const DecisionCard = React.forwardRef<
           )}
         >
           <p className="text-small leading-6">{displayAgentReason(tick.decision.reason)}</p>
+          <GatesBlock tick={tick} />
+          <MovementBlock tick={tick} />
           {tick.market?.odds && Object.keys(tick.market.odds).length > 0 && (
             <div className="mt-2 flex flex-wrap gap-2">
               {Object.entries(tick.market.odds).map(([k, v]) => (
@@ -340,6 +457,8 @@ type FeedProps = {
   liveReason?: { action: string; reason: string; at: string } | null;
   onOpenProofs?: () => void;
   className?: string;
+  /** Dense layout for overview sidebar — no duplicate status hero */
+  compact?: boolean;
 };
 
 const DecisionFeed = React.forwardRef<HTMLDivElement, FeedProps>(
@@ -353,12 +472,16 @@ const DecisionFeed = React.forwardRef<HTMLDivElement, FeedProps>(
       liveReason = null,
       onOpenProofs,
       className,
+      compact = false,
     },
     ref,
   ) => {
     const feed = React.useMemo(() => dedupeTicksForFeed(ticks), [ticks]);
     const current = feed[0];
-    const history = feed.slice(1, 1 + MAX_HISTORY).filter((t) => !isIdleHold(t) || isFeedIssue(t) || isTradeAbort(t));
+    // Compact: show latest rows including current; full: history under status panel
+    const history = (
+      compact ? feed.slice(0, 1 + MAX_HISTORY) : feed.slice(1, 1 + MAX_HISTORY)
+    ).filter((t) => !isIdleHold(t) || isFeedIssue(t) || isTradeAbort(t) || t.execution?.simulated);
     const [, setTick] = React.useState(0);
     React.useEffect(() => {
       const id = window.setInterval(() => setTick((n) => n + 1), 1000);
@@ -369,12 +492,15 @@ const DecisionFeed = React.forwardRef<HTMLDivElement, FeedProps>(
       <Card
         ref={ref}
         className={cn(
-          "border border-primary-100 bg-content1 p-5 shadow-sm shadow-primary-100/30 dark:border-default-100 sm:p-6",
+          "border border-primary-100 bg-content1 shadow-sm shadow-primary-100/30 dark:border-default-100",
+          compact ? "p-3 sm:p-3.5" : "p-5 sm:p-6",
           className,
         )}
       >
         <div className="flex flex-wrap items-center gap-2">
-          <h2 className="font-display text-medium font-semibold text-foreground">Recent checks</h2>
+          <h2 className="font-display text-small font-semibold text-foreground sm:text-medium">
+            Recent checks
+          </h2>
           <Chip
             classNames={{ content: "font-medium text-[0.65rem]" }}
             color={lastSyncedAt && Date.now() - lastSyncedAt < 8_000 ? "success" : "primary"}
@@ -402,29 +528,31 @@ const DecisionFeed = React.forwardRef<HTMLDivElement, FeedProps>(
               size="sm"
               variant="flat"
             >
-              running check
+              running
             </Chip>
           )}
         </div>
 
-        <p className="mt-2 max-w-xl text-tiny leading-5 text-default-500">
-          Each row is one real agent tick on TxLINE odds — HOLD keeps capital in yield, TRADE only
-          when Y_net clears the edge.
-          {onOpenProofs && (
-            <>
-              {" "}
-              <button
-                className="underline underline-offset-2"
-                type="button"
-                onClick={onOpenProofs}
-              >
-                Verify path →
-              </button>
-            </>
-          )}
-        </p>
+        {!compact && (
+          <p className="mt-2 max-w-xl text-tiny leading-5 text-default-500">
+            Each row is one agent tick on live TxLINE odds. Paper SIM fills are labeled when
+            capital is virtual.
+            {onOpenProofs && (
+              <>
+                {" "}
+                <button
+                  className="underline underline-offset-2"
+                  type="button"
+                  onClick={onOpenProofs}
+                >
+                  Verify path →
+                </button>
+              </>
+            )}
+          </p>
+        )}
 
-        <div className="mt-5 flex flex-col gap-5">
+        <div className={cn("flex flex-col", compact ? "mt-3 gap-3" : "mt-5 gap-5")}>
           {error && (
             <div className="flex items-start gap-3 rounded-medium border border-warning-100 bg-warning-50/50 px-4 py-3">
               <Icon
@@ -456,7 +584,7 @@ const DecisionFeed = React.forwardRef<HTMLDivElement, FeedProps>(
             </div>
           )}
 
-          {current && (
+          {!compact && current && (
             <StatusPanel
               flash={liveFlashId === current.id}
               tick={
@@ -476,8 +604,10 @@ const DecisionFeed = React.forwardRef<HTMLDivElement, FeedProps>(
           )}
 
           {history.length > 0 && (
-            <div className="flex flex-col gap-4">
-              <p className="text-tiny font-medium text-default-500">Earlier changes</p>
+            <div className={cn("flex flex-col", compact ? "gap-2.5" : "gap-4")}>
+              {!compact && (
+                <p className="text-tiny font-medium text-default-500">Earlier changes</p>
+              )}
               {history.map((t) => (
                 <DecisionCard
                   key={t.id}

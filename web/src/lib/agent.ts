@@ -39,11 +39,14 @@ export type TickYield = {
 export type TickExecution = {
   aborted?: boolean;
   abortReason?: string;
-  order?: { orderId?: string; status?: string };
+  order?: { orderId?: string; status?: string; team?: string; side?: string; sizeUsdc?: number };
   withdrewUsdc?: number;
   withdrawTxid?: string;
   redeposited?: boolean;
   redepositTxid?: string;
+  /** Paper fill — real TxLINE odds, virtual capital */
+  simulated?: boolean;
+  simBankrollUsdc?: number;
 };
 
 /** Sharp odds shift between two consecutive real snapshots of the same fixture. */
@@ -70,6 +73,12 @@ export type MatchVerification = {
   explorerUrl?: string;
 };
 
+/** Dry-run decision when capital is unfunded — never executed, never a real balance. */
+export type TickProjection = {
+  decision: Decision;
+  hypotheticalCapitalUsdc: number;
+};
+
 /** Exact shape of the worker's tick response (plus optional user stamp). */
 export type AgentResponse =
   | {
@@ -87,6 +96,7 @@ export type AgentResponse =
         execution?: TickExecution;
         movement?: TickMovement[];
         verification?: MatchVerification;
+        projection?: TickProjection;
         durationMs?: number;
       };
     }
@@ -106,6 +116,8 @@ export type Tick = {
   execution?: TickExecution;
   movement?: TickMovement[];
   verification?: MatchVerification;
+  /** Present when tick ran without live Kamino capital (observability only). */
+  projection?: TickProjection;
 };
 
 /** Honest client-side failure tick for the app when the agent cannot be reached.
@@ -196,6 +208,7 @@ export async function fetchTick(signal?: AbortSignal): Promise<Tick> {
     execution: ok.tick?.execution,
     movement: ok.tick?.movement,
     verification: ok.tick?.verification,
+    projection: ok.tick?.projection,
   });
 }
 
@@ -206,7 +219,8 @@ export type AgentStatusPayload = {
   position?: TickYield;
   walletUsdc?: number | null;
   liveApy?: number | null;
-  capital?: "funded" | "unfunded" | "unknown";
+  capital?: "funded" | "unfunded" | "unknown" | "simulation";
+  simBankrollUsdc?: number;
   openPositions?: Array<{
     id: string;
     matchId?: string;
@@ -227,7 +241,7 @@ export type AgentStatusPayload = {
     execution?: TickExecution;
     movement?: TickMovement[];
     verification?: MatchVerification;
-    projection?: { decision: Decision; hypotheticalCapitalUsdc: number };
+    projection?: TickProjection;
   };
   config: {
     tradeSizeUsdc: number;
@@ -267,6 +281,7 @@ export function normalizeTick(t: {
   execution?: TickExecution;
   movement?: TickMovement[];
   verification?: MatchVerification;
+  projection?: TickProjection;
 }): Tick {
   const agentStatus =
     t.status === "Executed" ||
@@ -287,6 +302,7 @@ export function normalizeTick(t: {
     execution: t.execution,
     movement: t.movement,
     verification: t.verification,
+    projection: t.projection,
   };
 }
 
@@ -373,6 +389,7 @@ export async function fetchAgentHistory(limit = 40, signal?: AbortSignal) {
       execution?: TickExecution;
       movement?: TickMovement[];
       verification?: MatchVerification;
+      projection?: TickProjection;
     }>;
   };
   return (body.ticks ?? []).map((t) =>
@@ -386,6 +403,7 @@ export async function fetchAgentHistory(limit = 40, signal?: AbortSignal) {
       execution: t.execution,
       movement: t.movement,
       verification: t.verification,
+      projection: t.projection,
     }),
   );
 }
@@ -443,6 +461,7 @@ export async function fetchReplays(limit = 1000, signal?: AbortSignal): Promise<
             execution: t.execution as TickExecution | undefined,
             movement: t.movement as TickMovement[] | undefined,
             verification: t.verification as MatchVerification | undefined,
+            projection: t.projection as TickProjection | undefined,
           }),
         );
       }
