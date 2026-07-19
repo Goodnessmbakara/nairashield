@@ -2,7 +2,7 @@
 
 ### The only agent that keeps capital in yield until Y_net clears.
 
-![Retegol](assets/screenshots/hero.png)
+![Retegol app](./assets/screenshots/app.png)
 
 Retegol is the **only** World Cup trading agent that keeps USDC in **Kamino**
 by default and only leaves yield when **Y_net** on live **TxLINE** odds clears
