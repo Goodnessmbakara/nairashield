@@ -40,8 +40,14 @@ function isFeedIssue(tick: Tick): boolean {
 function statusChip(tick: Tick): { label: string; color: "success" | "warning" | "default" | "danger" | "primary" | "secondary" } {
   if (isTradeAbort(tick)) return { label: "Safe abort", color: "warning" };
   if (isFeedIssue(tick)) return { label: "Feed issue", color: "secondary" };
+  if (tick.execution?.simulated && tick.decision.action === "TRADE") {
+    return { label: "SIM TRADE", color: "secondary" };
+  }
   if (tick.decision.action === "TRADE") {
     return { label: "TRADE", color: "warning" };
+  }
+  if (tick.execution?.simulated || /SIMULATION/i.test(tick.decision.reason)) {
+    return { label: "SIM HOLD", color: "default" };
   }
   return { label: "HOLD", color: "success" };
 }
@@ -499,18 +505,24 @@ const DecisionFeed = React.forwardRef<HTMLDivElement, FeedProps>(
       >
         <div className="flex flex-wrap items-center gap-2">
           <h2 className="font-display text-small font-semibold text-foreground sm:text-medium">
-            Recent checks
+            Live actions
           </h2>
           <Chip
             classNames={{ content: "font-medium text-[0.65rem]" }}
-            color={lastSyncedAt && Date.now() - lastSyncedAt < 8_000 ? "success" : "primary"}
+            color={
+              liveFlashId
+                ? "success"
+                : lastSyncedAt && Date.now() - lastSyncedAt < 12_000
+                  ? "success"
+                  : "primary"
+            }
             radius="sm"
             size="sm"
             startContent={
               <span
                 className={cn(
                   "ml-1 h-1.5 w-1.5 rounded-full",
-                  lastSyncedAt && Date.now() - lastSyncedAt < 8_000
+                  liveFlashId || (lastSyncedAt && Date.now() - lastSyncedAt < 12_000)
                     ? "animate-pulse bg-success"
                     : "bg-primary",
                 )}
@@ -518,7 +530,7 @@ const DecisionFeed = React.forwardRef<HTMLDivElement, FeedProps>(
             }
             variant="flat"
           >
-            {syncLabel(lastSyncedAt)}
+            {liveFlashId ? "just now" : syncLabel(lastSyncedAt)}
           </Chip>
           {loading && (
             <Chip
@@ -609,11 +621,16 @@ const DecisionFeed = React.forwardRef<HTMLDivElement, FeedProps>(
                 <p className="text-tiny font-medium text-default-500">Earlier changes</p>
               )}
               {history.map((t) => (
-                <DecisionCard
+                <div
                   key={t.id}
-                  className={liveFlashId === t.id ? "opacity-100" : undefined}
-                  tick={t}
-                />
+                  className={cn(
+                    "rounded-medium transition-[box-shadow,transform,opacity] duration-500",
+                    liveFlashId === t.id &&
+                      "scale-[1.01] shadow-[0_0_0_2px_rgba(0,107,187,0.35)]",
+                  )}
+                >
+                  <DecisionCard tick={t} />
+                </div>
               ))}
             </div>
           )}

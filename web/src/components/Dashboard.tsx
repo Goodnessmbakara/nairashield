@@ -56,6 +56,7 @@ export default function Dashboard() {
     liveFlashId,
     liveReason,
     agentStatus,
+    livePulse,
   } = useAgent({
     enabled: isAuthenticated,
   });
@@ -289,12 +290,12 @@ export default function Dashboard() {
   const decisionHero = (
     <Card
       className={cn(
-        "overflow-hidden border-2 bg-content1 shadow-sm",
+        "overflow-hidden border-2 bg-content1 shadow-sm transition-[box-shadow,border-color,transform] duration-500",
         isTrade
           ? "border-warning-300 shadow-warning-100/80"
           : "border-primary-200 shadow-primary-100/60",
         liveFlashId && latest && liveFlashId === latest.id
-          ? "ring-2 ring-primary-300 ring-offset-2"
+          ? "scale-[1.005] ring-2 ring-primary-400 ring-offset-2 shadow-primary-200/80"
           : "",
       )}
     >
@@ -674,14 +675,42 @@ export default function Dashboard() {
                 radius="sm"
                 size="sm"
                 variant="flat"
+                startContent={
+                  connected ? (
+                    <span
+                      className={cn(
+                        "ml-1 h-1.5 w-1.5 rounded-full bg-success",
+                        livePulse % 2 === 0 ? "opacity-100" : "opacity-40",
+                      )}
+                    />
+                  ) : undefined
+                }
               >
-                {connected ? "Live" : "Offline"}
+                {connected ? "LIVE" : "Offline"}
               </Chip>
-              {connected && lastSyncedAt != null && (
-                <span className="hidden text-tiny tabular-nums text-default-400 sm:inline">
-                  {Math.max(0, Math.round((Date.now() - lastSyncedAt) / 1000)) < 5
-                    ? "just now"
-                    : `${Math.max(0, Math.round((Date.now() - lastSyncedAt) / 1000))}s ago`}
+              {connected && (liveReason || latest) && (
+                <span className="hidden min-w-0 truncate text-tiny text-default-500 sm:inline">
+                  <span
+                    className={cn(
+                      "font-semibold",
+                      (liveReason?.action ?? latest?.decision.action) === "TRADE"
+                        ? "text-warning-600"
+                        : "text-success-600",
+                    )}
+                  >
+                    {liveReason?.action ?? latest?.decision.action ?? "—"}
+                  </span>
+                  {" · "}
+                  <span className="tabular-nums text-default-400">
+                    {lastSyncedAt != null
+                      ? Math.max(0, Math.round((Date.now() - lastSyncedAt) / 1000)) < 3
+                        ? "now"
+                        : `${Math.max(0, Math.round((Date.now() - lastSyncedAt) / 1000))}s ago`
+                      : "…"}
+                  </span>
+                  {liveFlashId ? (
+                    <span className="ml-1 font-semibold text-primary">· new</span>
+                  ) : null}
                 </span>
               )}
             </div>

@@ -3,6 +3,11 @@ import type { Tick } from "./agent";
 /** Waiting / no in-play market — not a new event. */
 export function isIdleHold(tick: Tick): boolean {
   if (tick.decision.action !== "HOLD") return false;
+  // Simulated fills / paper trades always stay visible in the live feed
+  if (tick.execution?.simulated || tick.execution?.order?.orderId?.startsWith("sim_")) {
+    return false;
+  }
+  if (/simulation/i.test(tick.decision.reason)) return false;
   const r = tick.decision.reason.toLowerCase();
   // Trade aborts and feed issues are real state changes — never collapse as idle.
   if (
