@@ -21,8 +21,8 @@ const {
   legalFooter = false,
 } = Astro.props;
 
-const pageTitle = title === "Retegol" ? "Retegol app screenshot" : title;
-const ogImage = `${SITE}/og.png`;
+const pageTitle = title === "Retegol" ? "Retegol" : title;
+const ogImage = `${SITE}/share-v3.png`;
 const canonical = new URL(Astro.url.pathname, SITE).toString();
 // Bust stale N-logo caches in browsers / iMessage / WhatsApp
 const iconV = "2";
