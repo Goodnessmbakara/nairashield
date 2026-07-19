@@ -163,7 +163,8 @@ export async function fetchTick(signal?: AbortSignal): Promise<Tick> {
       method: "POST",
       signal,
       headers: authHeaders(),
-      credentials: "include",
+      // Bearer session is enough; omit credentials to avoid CORS edge cases
+      // when the session is header-based across origins.
     });
   } catch (e) {
     if ((e as Error).name === "AbortError") throw e;
@@ -261,7 +262,6 @@ export async function fetchAgentStatus(signal?: AbortSignal): Promise<AgentStatu
     const res = await fetch(`${AGENT_URL}/agent/status`, {
       signal,
       headers: authHeaders(),
-      credentials: "include",
     });
     if (!res.ok) return null;
     return res.json() as Promise<AgentStatusPayload>;
@@ -326,7 +326,6 @@ export async function fetchFixtures(signal?: AbortSignal): Promise<WatchedFixtur
     const res = await fetch(`${AGENT_URL}/agent/fixtures`, {
       signal,
       headers: authHeaders(),
-      credentials: "include",
     });
     if (!res.ok) return [];
     const body = (await res.json()) as { fixtures?: WatchedFixture[] };
@@ -352,7 +351,6 @@ export async function verifyFixture(
     {
       signal,
       headers: authHeaders(),
-      credentials: "include",
     },
   );
   if (!res.ok) {
@@ -375,7 +373,6 @@ export async function fetchAgentHistory(limit = 40, signal?: AbortSignal) {
   const res = await fetch(`${AGENT_URL}/agent/history?limit=${limit}`, {
     signal,
     headers: authHeaders(),
-    credentials: "include",
   });
   if (!res.ok) return [];
   const body = (await res.json()) as {
@@ -436,7 +433,6 @@ export async function fetchReplays(limit = 1000, signal?: AbortSignal): Promise<
     const res = await fetch(`${AGENT_URL}/agent/replays?limit=${limit}`, {
       signal,
       headers: authHeaders(),
-      credentials: "include",
     });
     if (!res.ok) return null;
 
@@ -503,7 +499,6 @@ export async function fetchReplayOdds(
       {
         signal,
         headers: authHeaders(),
-        credentials: "include",
       },
     );
     if (!res.ok) return [];
