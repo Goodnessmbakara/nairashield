@@ -331,6 +331,33 @@ export default function Dashboard() {
           </div>
         )}
 
+        {latest?.verification && (
+          <div
+            className={`rounded-medium border px-3 py-2.5 ${
+              latest.verification.ok
+                ? "border-success-200 bg-success-50"
+                : "border-warning-200 bg-warning-50"
+            }`}
+          >
+            <div className="flex flex-wrap items-center gap-2">
+              <Chip
+                color={latest.verification.ok ? "success" : "warning"}
+                size="sm"
+                variant="flat"
+                classNames={{ content: "text-[0.65rem] font-bold" }}
+              >
+                {latest.verification.ok ? "VAR · CONFIRMED" : "VAR · REVIEW"}
+              </Chip>
+              <span className="text-tiny text-default-600">
+                {latest.verification.stage} · {latest.verification.cluster}
+              </span>
+            </div>
+            <p className="mt-1 text-tiny leading-5 text-default-600">
+              {latest.verification.reason}
+            </p>
+          </div>
+        )}
+
         <div className="flex flex-wrap items-center gap-2 border-t border-primary-100 pt-3">
           <Button
             className="font-semibold"
@@ -343,8 +370,21 @@ export default function Dashboard() {
           >
             Run check
           </Button>
+          {market?.matchId && (
+            <Button
+              className="font-semibold"
+              color="secondary"
+              radius="full"
+              size="sm"
+              startContent={<Icon icon="solar:shield-check-bold" width={14} />}
+              variant="flat"
+              onPress={() => changeView("proofs")}
+            >
+              Verify match
+            </Button>
+          )}
           <span className="text-tiny text-primary-600/80">
-            Same loop as the minute cron — TxLINE in, decide, hold or trade.
+            Cron loop · TxLINE in · decide · optional on-chain VAR
           </span>
         </div>
       </CardBody>
@@ -360,10 +400,10 @@ export default function Dashboard() {
         onOpenChange={onLogoutOpenChange}
       />
 
-      <div className="flex h-dvh w-full overflow-hidden bg-background">
+      <div className="flex h-dvh w-full overflow-hidden">
         <aside
           className={cn(
-            "hidden h-dvh shrink-0 border-r border-divider bg-content1 transition-[width] duration-200 ease-out sm:flex sm:flex-col",
+            "hidden h-dvh shrink-0 border-r border-primary-100 bg-white/90 backdrop-blur-md transition-[width] duration-200 ease-out sm:flex sm:flex-col",
             isCompact ? "w-[4.5rem]" : "w-72",
           )}
         >
@@ -386,7 +426,7 @@ export default function Dashboard() {
         ) : null}
 
         <div className="flex min-h-0 min-w-0 flex-1 flex-col">
-          <header className="flex h-14 shrink-0 items-center gap-3 border-b border-divider bg-content1 px-4 sm:px-6">
+          <header className="flex h-14 shrink-0 items-center gap-3 border-b border-primary-100 bg-white/80 px-4 backdrop-blur-md sm:px-6">
             <Button
               isIconOnly
               aria-label="Open menu"
