@@ -23,6 +23,7 @@ import SidebarDrawer from "./dashboard/SidebarDrawer";
 import LogoutConfirmModal from "./dashboard/LogoutConfirmModal";
 import { dashboardNav, type DashboardView } from "./dashboard/sidebar-items";
 import { dedupeTicksForFeed, displayAgentReason, isIdleHold } from "../lib/ticks";
+import { TeamFlag, flagUrl } from "../lib/flags";
 import { useAgent } from "../hooks/useAgent";
 import { useAuth } from "../hooks/useAuth";
 
@@ -259,7 +260,17 @@ export default function Dashboard() {
 
         <div className="rounded-medium border border-primary-100 bg-primary-50/60 px-4 py-3">
           <p className="text-tiny font-medium text-primary-600">Market</p>
-          <p className="mt-0.5 text-medium font-semibold text-foreground">{matchName}</p>
+          <div className="mt-1 flex flex-wrap items-center gap-2">
+            {market?.p1 && <TeamFlag name={market.p1} width={24} height={17} />}
+            {!market?.p1 && flagUrl(matchName.split(/\s+vs\s+/i)[0]) && (
+              <TeamFlag name={matchName.split(/\s+vs\s+/i)[0]!} width={24} height={17} />
+            )}
+            <p className="text-medium font-semibold text-foreground">{matchName}</p>
+            {market?.p2 && <TeamFlag name={market.p2} width={24} height={17} />}
+            {!market?.p2 && flagUrl(matchName.split(/\s+vs\s+/i)[1]) && (
+              <TeamFlag name={matchName.split(/\s+vs\s+/i)[1]!} width={24} height={17} />
+            )}
+          </div>
           {market?.matchId && (
             <p className="mt-1 font-mono text-[0.65rem] text-primary-500/80">
               fixture · {market.matchId}
@@ -277,6 +288,7 @@ export default function Dashboard() {
                 "border-warning-200 bg-warning-50",
               ];
               const textTones = ["text-primary-700", "text-secondary-700", "text-warning-700"];
+              const isDraw = /^draw|x$/i.test(k);
               return (
                 <div
                   key={k}
@@ -285,12 +297,24 @@ export default function Dashboard() {
                     tones[i % 3],
                   )}
                 >
-                  <span className={cn("text-[0.65rem] font-medium uppercase", textTones[i % 3])}>
+                  {isDraw ? (
+                    <span className="flex h-5 w-7 items-center justify-center rounded-[2px] bg-secondary-200 text-[0.55rem] font-bold text-secondary-800">
+                      X
+                    </span>
+                  ) : (
+                    <TeamFlag name={k} width={28} height={20} />
+                  )}
+                  <span
+                    className={cn(
+                      "mt-1.5 text-[0.65rem] font-medium uppercase",
+                      textTones[i % 3],
+                    )}
+                  >
                     {k}
                   </span>
                   <span
                     className={cn(
-                      "mt-1 font-mono text-xl font-semibold tabular-nums",
+                      "mt-0.5 font-mono text-xl font-semibold tabular-nums",
                       textTones[i % 3],
                     )}
                   >
@@ -314,7 +338,10 @@ export default function Dashboard() {
                 key={m.outcome}
                 className="flex items-center justify-between rounded-medium border border-warning-100 bg-warning-50 px-3 py-2"
               >
-                <span className="text-small font-medium text-foreground">{m.outcome}</span>
+                <span className="flex min-w-0 items-center gap-2 text-small font-medium text-foreground">
+                  <TeamFlag name={m.outcome} width={20} height={14} />
+                  {m.outcome}
+                </span>
                 <span className="text-tiny tabular-nums text-default-600">
                   {m.fromOdds} → {m.toOdds}{" "}
                   <span

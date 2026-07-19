@@ -5,6 +5,7 @@ import { Avatar, Badge, Card, Chip, cn } from "@heroui/react";
 import { Icon } from "@iconify/react";
 import type { Tick } from "../lib/agent";
 import { dedupeTicksForFeed, displayAgentReason, isIdleHold } from "../lib/ticks";
+import { TeamFlag } from "../lib/flags";
 
 const MAX_HISTORY = 12;
 
@@ -74,10 +75,17 @@ function MarketBlock({ tick }: { tick: Tick }) {
           {oddsEntries.map(([k, v]) => (
             <div
               key={k}
-              className="flex flex-col items-center rounded-medium bg-default-50 px-2 py-1.5"
+              className="flex flex-col items-center rounded-medium bg-primary-50/80 px-2 py-2 ring-1 ring-primary-100"
             >
-              <span className="text-[0.6rem] uppercase text-default-400">{k}</span>
-              <span className="font-mono text-small font-semibold tabular-nums text-foreground">
+              {/^draw|x$/i.test(k) ? (
+                <span className="flex h-4 w-6 items-center justify-center rounded-[2px] bg-secondary-200 text-[0.5rem] font-bold text-secondary-800">
+                  X
+                </span>
+              ) : (
+                <TeamFlag name={k} width={22} height={15} />
+              )}
+              <span className="mt-1 text-[0.6rem] font-medium uppercase text-primary-600">{k}</span>
+              <span className="font-mono text-small font-semibold tabular-nums text-primary-800">
                 {Number(v).toFixed(2)}
               </span>
             </div>
