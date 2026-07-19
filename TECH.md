@@ -18,12 +18,18 @@ Every tick is **real data in → deterministic guardrails → optional AI narrat
 order IDs, or fills. Empty feed or missing capital still runs the decision path
 as a typed dry-run / projection where configured — never as a fake live balance.
 
+**Every TRADE is gated on Solana:** `verifyMatchOnChain` must return `ok: true`
+(TxLINE Merkle proof + roots PDA / `validate_fixture`). Unverified fixtures
+cannot leave Kamino yield.
+
 That is what the dashboard is built to show: live fixtures, live odds when the
 feed has them, movement between real snapshots, and fail-closed reasons.
 
 ---
 
 ## TxLINE endpoints used
+
+Source of truth: `src/integrations/txline.ts` (plus `txline-verify.ts` for Merkle).
 
 Base origin (devnet example): `https://txline-dev.txodds.com`  
 (mainnet: `https://txline.txodds.com`)
@@ -33,6 +39,7 @@ Base origin (devnet example): `https://txline-dev.txodds.com`
 | Guest session (JWT) | `POST` | `/auth/guest/start` |
 | Activate → `X-Api-Token` | `POST` | `/api/token/activate` (see `scripts/txline-activation/`) |
 | Fixtures snapshot | `GET` | `/api/fixtures/snapshot` |
+| Global odds snapshot | `GET` | `/api/odds/snapshot` |
 | Per-fixture odds | `GET` | `/api/odds/snapshot/{fixtureId}` |
 | Odds history (replays) | `GET` | `/api/odds/updates/{fixtureId}` |
 | Scores snapshot | `GET` | `/api/scores/snapshot/{fixtureId}` |
@@ -40,8 +47,10 @@ Base origin (devnet example): `https://txline-dev.txodds.com`
 
 Auth on data calls: `Authorization: Bearer <guestJwt>` + `X-Api-Token: <activated token>`.
 
-Wire note: live payloads often use **PascalCase** (`Prices`, `FixtureId`); the
-client normalizes both cases and treats milliodds (e.g. `2390` → `2.390`).
+**Wire / feed notes (still accurate as of client code):**
+- Live payloads often use **PascalCase** (`Prices`, `FixtureId`, `InRunning`); the client reads both PascalCase and camelCase and converts milliodds (e.g. `2390` → `2.390`).
+- An empty authenticated response (`[]`) means no odds in the current interval — treated as honest no-live-odds, not a parse failure.
+- Global `/api/odds/snapshot` can 404 on devnet; the client then **sweeps per-fixture** odds from the fixtures list (World Cup CompId 72, nearest kickoff first).
 
 ### Where each endpoint shows up in the product
 
@@ -76,6 +85,18 @@ stopLossEdge: 0.06
 
 Env / secrets hold credentials only (`TXLINE_*`, `SOLANA_PRIVATE_KEY`, `RPC_URL`,
 `DATABASE_URL`, OAuth, etc.) — see `.dev.vars.example`.
+
+### Falsifiers (Popper)
+
+Policy is a bold conjecture under criticism. Each rule states what would prove it wrong; thresholds are **not** retuned without evidence of a bug.
+
+| Rule | Claim | Falsifier |
+| --- | --- | --- |
+| `movementThreshold: 0.03` | Relative odds moves ≥3% between real ticks are worth flagging | Chronic noise flags with no subsequent information; or real sharp moves always stay under 3% on this feed’s sampling |
+| `minEdge: 0.01` | Do not leave yield unless Y_net / C ≥ 1% | Systematic negative realized after costs when the gate passes; or the gate never passes when clear maker edge exists |
+| `makerMargin: 0.02` | 2% quote width around TxLINE fair value is tradeable | Zero fills at that width; or fills only when margin → 0 |
+| `eventHorizonHours: 2` | Opportunity-cost window ≈ 2 hours | Positions average much longer or shorter; yield cost systematically mis-estimated |
+| Fail-closed HOLD | Empty or missing data must not invent markets | Any path that fabricates odds, balances, or fills |
 
 ---
 

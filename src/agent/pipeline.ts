@@ -176,17 +176,13 @@ export async function runAgentTick(env: Env): Promise<AgentTickResult> {
 			booksFull,
 		});
 
-		// Hard-block only when the on-chain oracle actively rejects the fixture
-		// (simulate stage failure). A missing PDA means the oracle hasn't posted
-		// today's root yet — treat as soft-warn and let the trade proceed.
-		const hardBlocked =
-			decision.action === "TRADE" &&
-			!verification.ok &&
-			verification.stage === "simulate";
-		if (hardBlocked) {
+		// Every pick anchored on Solana: no TRADE unless on-chain TxLINE verify
+		// passed (Merkle proof + roots PDA, and validate_fixture when sim runs).
+		// Missing proof / unpublished PDA / rejected sim → capital stays in yield.
+		if (decision.action === "TRADE" && !verification.ok) {
 			decision = {
 				action: "HOLD",
-				reason: `Match not verified on-chain — capital stays in yield. ${verification.reason}`,
+				reason: `Match not verified on-chain before kickoff — capital stays in yield. ${verification.reason}`,
 				yieldApy: config.yieldApy,
 				makerMargin: config.makerMargin,
 			};

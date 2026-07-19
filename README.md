@@ -1,19 +1,21 @@
 # Retegol
 
-### Capital that never sits still — yield by default, live odds only when the math clears.
+### Second-level capital allocation: yield by default; trade only when edge beats staying in Kamino.
 
 ![Retegol](assets/screenshots/hero.png)
 
-Retegol is an autonomous market-making agent for sports prediction markets on
-Solana. Idle USDC earns **Kamino** yield. Every minute a **Cloudflare Worker**
-reads live **TxLINE** consensus odds, decides with a hard Y_net guardrail
-(edge vs yield opportunity cost), and only then withdraws and places a
+Retegol is an autonomous capital-allocation agent for sports prediction markets
+on Solana — not “odds moved, so trade.” Idle USDC earns **Kamino** yield.
+Every minute a **Cloudflare Worker** reads live **TxLINE** consensus odds as
+fair value, scores **Y_net** (expected maker edge minus yield opportunity
+cost), and only when that hard floor clears does it withdraw and place a
 **Jupiter Predict** maker order. No human in the loop after deploy.
 
 **[Open the live app → retegol.vercel.app](https://retegol.vercel.app)** ·
 [Agent health](https://retegol-bot.zanbuilds.workers.dev/health) ·
 [Technical documentation](./TECH.md) ·
-[Demo script](./DEMO_SCRIPT.md)
+[Demo script](./DEMO_SCRIPT.md) ·
+[Coding-agent win pack](./agent-context/README.md)
 
 Built for the **TxODDS Superteam Earn** hackathon — *Trading Tools and Agents*.
 
@@ -30,6 +32,7 @@ when capital is not yet deployed — they are never stored as a real vault balan
 | :--- | :--- |
 | Poll TxLINE fixtures + per-fixture odds every minute | Invent odds, order IDs, or Kamino balances |
 | Flag sharp odds moves (>3% between real snapshots) | Trade when Y_net does not clear `minEdge` |
+| Require on-chain TxLINE verify before any TRADE | Trade an unverified fixture |
 | Safe-abort if Kamino withdraw or Jupiter order fails | Leave capital mid-path without a recovery attempt |
 
 ---
