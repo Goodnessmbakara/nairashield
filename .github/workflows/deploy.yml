@@ -14,7 +14,6 @@ permissions:
 
 env:
   WORKER_URL: ${{ vars.WORKER_URL || 'https://retegol-bot.zanbuilds.workers.dev' }}
-  PAGES_PROJECT: ${{ vars.PAGES_PROJECT || 'retegol' }}
 
 jobs:
   worker:
@@ -60,8 +59,11 @@ jobs:
           cat /tmp/health.json 2>/dev/null || true
           exit 1
 
+  # Dashboard hosts on Vercel (https://retegol.vercel.app), NOT Cloudflare Pages.
+  # The old job called `wrangler pages deploy --project-name=retegol` and failed with
+  # Project not found (8000007) because that CF Pages project was never created.
   pages:
-    name: Deploy dashboard
+    name: Build & deploy dashboard
     needs: worker
     runs-on: ubuntu-latest
     steps:
@@ -87,9 +89,23 @@ jobs:
           PUBLIC_AGENT_URL: ${{ env.WORKER_URL }}
         run: pnpm run build
 
-      - uses: cloudflare/wrangler-action@v3
-        with:
-          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-          workingDirectory: web
-          command: pages deploy dist --project-name=${{ env.PAGES_PROJECT }}
+      - name: Deploy to Vercel (production)
+        working-directory: web
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+          VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+          VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+        run: |
+          set -euo pipefail
+          # Dashboard production host is Vercel (retegol.vercel.app), not Cloudflare Pages.
+          if [ -z "${VERCEL_TOKEN:-}" ]; then
+            echo "Dashboard build OK. Skipping Vercel deploy — VERCEL_TOKEN secret not set."
+            echo "Live UI: https://retegol.vercel.app (Vercel Git integration or manual deploy)."
+            exit 0
+          fi
+          # Optional project link via secrets (recommended in CI)
+          if [ -n "${VERCEL_ORG_ID:-}" ] && [ -n "${VERCEL_PROJECT_ID:-}" ]; then
+            mkdir -p .vercel
+            printf '{"orgId":"%s","projectId":"%s"}\n' "$VERCEL_ORG_ID" "$VERCEL_PROJECT_ID" > .vercel/project.json
+          fi
+          npx vercel@latest deploy dist --prod --token="$VERCEL_TOKEN" --yes

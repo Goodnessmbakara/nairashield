@@ -8,3 +8,11 @@ dist/
 .brand-preview/
 scripts/txline-activation/node_modules/
 scripts/_txodds_ref/
+
+# Local agent tooling — never ship design/animation skills into the product repo
+.agents/
+.claude/
+.cursor/
+web/.cursor/
+**/.cursor/
+skills-lock.json
