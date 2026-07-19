@@ -1,4 +1,4 @@
-// Landing narrative: Problem → Agitation → Solution → How.
+// Landing copy: plain language. No em dashes. No eng-jargon walls.
 
 export const nav = [
   { label: "How it works", href: "#how" },
@@ -7,38 +7,37 @@ export const nav = [
 ];
 
 export const problem = {
-  title: "Agent-First Capital Management",
-  body: "Stop letting your stablecoins sit dead between plays. The AI agent parks your funds in yield, watches live markets 24/7, and only strikes when the math clears.",
+  title: "Your capital earns while the agent watches live odds",
+  body: "Sports money usually sits idle between matches. Retegol keeps it earning by default, reads live TxLINE odds, and only moves when the expected edge beats what you would earn by staying put. If the feed is empty or the numbers do not clear, it holds. No fake odds. No fake fills.",
 };
 
 export const agitation = {
   title: "Idle money loses twice",
   points: [
     {
-      title: "Yield left on the table",
-      body: "While you wait for the next price, capital earns nothing in a plain wallet.",
+      title: "You miss yield",
+      body: "Cash sitting in a plain wallet earns nothing while you wait for the next match.",
     },
     {
-      title: "Attention tax",
+      title: "You babysit the market",
       body: "Someone has to watch odds, decide, and execute. That is slow and easy to miss.",
     },
     {
-      title: "Half-done moves",
-      body: "Pulling funds out and failing mid-trade can leave capital stuck in the wrong place.",
+      title: "Bad demos invent numbers",
+      body: "Many tools show fake balances and fills. If the data is not real, you cannot trust the decision.",
     },
   ],
 };
 
 export const solution = {
-  title: "Your agent keeps capital earning, then deploys only when the math clears",
-  body: "Fund once. Your balance sits in Kamino yield. The AI agent watches live TxLINE odds and only moves capital into Jupiter Predict markets when expected upside beats the yield you give up. After settlement, funds go back to earning.",
+  title: "Earn by default. Trade only when it is worth leaving yield.",
+  body: "Fund once. Capital stays in yield. The agent runs on its own and pulls live TxLINE World Cup odds. It only acts when the edge is worth more than staying in yield. After a position settles, funds go back to earning. Empty feed or bad data means an honest hold with a clear reason.",
 };
 
 export type Step = {
   step: string;
   title: string;
   body: string;
-  /** What the product UI shows at this stage (first-run depiction). */
   uiCaption: string;
   panel: "deposit" | "yield" | "watching" | "decision" | "settle";
 };
@@ -54,29 +53,29 @@ export const steps: Step[] = [
   {
     step: "02",
     title: "Earn by default",
-    body: "While nothing is worth trading, balance stays in Kamino and keeps accruing yield.",
-    uiCaption: "Idle capital shows as Kept earning with live Kamino APY.",
+    body: "While nothing is worth trading, balance stays in yield and keeps accruing.",
+    uiCaption: "Idle capital shows as kept earning with live APY.",
     panel: "yield",
   },
   {
     step: "03",
     title: "Watch live markets",
-    body: "The agent reads live sports market data and evaluates offers against idle yield.",
-    uiCaption: "Watching lists upcoming fixtures from TxLINE — no babysitting required.",
+    body: "The agent reads live TxLINE consensus odds for World Cup fixtures. No babysitting.",
+    uiCaption: "Watching lists fixtures from TxLINE.",
     panel: "watching",
   },
   {
     step: "04",
-    title: "Act only when worth it",
-    body: "If expected upside does not beat the yield cost of leaving the vault, it holds.",
-    uiCaption: "Agent activity shows one status: Keep earning or Take opportunity.",
+    title: "Decide with a hard bar",
+    body: "It only trades when expected edge beats the cost of leaving yield. Odds moved is not enough. Otherwise it holds and keeps earning.",
+    uiCaption: "Agent activity shows keep earning or take opportunity.",
     panel: "decision",
   },
   {
     step: "05",
     title: "Return to earning",
-    body: "When a position settles, funds route back to yield without manual babysitting.",
-    uiCaption: "After a trade settles, capital goes back to Kamino automatically.",
+    body: "When a position settles, funds route back to yield without manual work.",
+    uiCaption: "After a trade settles, capital goes back to yield automatically.",
     panel: "settle",
   },
 ];
@@ -87,27 +86,32 @@ export const faqs: Faq[] = [
   {
     title: "What problem does this solve?",
     content:
-      "Stablecoins parked between sports plays often earn nothing. Retegol keeps that capital in yield and only deploys it when a live market opportunity clears the cost of leaving yield.",
+      "Sports capital often earns nothing between plays. Retegol keeps it in yield and only deploys when live TxLINE odds say the edge is worth leaving that yield.",
   },
   {
     title: "Is this arbitrage?",
     content:
-      "No. Arbitrage needs the same event priced differently on two venues. This agent takes positions on Jupiter Predict when the live TxLINE price says the upside beats continuing to earn yield.",
+      "No. It does not need two venues with different prices. TxLINE is the fair value feed. The agent only acts when the edge beats staying in yield.",
   },
   {
-    title: "When does it place a bet?",
+    title: "When does it place a trade?",
     content:
-      "When expected upside is higher than the interest you would lose by pulling money out of yield. Otherwise it holds.",
+      "Only when expected edge is higher than the yield you would miss by pulling money out. Odds ticking alone is not a green light. If the bar does not clear, it holds.",
+  },
+  {
+    title: "What if the odds feed is empty?",
+    content:
+      "Honest hold with a specific reason on the dashboard. No invented fixtures, odds, or fills.",
   },
   {
     title: "What if a move fails mid-way?",
     content:
-      "If capital cannot leave the yield position cleanly, the agent stops before placing an offer. You should not get stuck halfway through a trade.",
+      "It stops cleanly. If capital cannot leave yield safely, it does not open a trade. If funds already left and the order fails, it tries to put them back.",
   },
   {
     title: "Do I need to manage it daily?",
     content:
-      "Once funded, the loop is designed to run without constant approvals: watch, decide, act when worth it, return funds to yield.",
+      "Once funded, the loop is built to run without constant approvals: watch, decide, act only when the bar clears, return funds to yield.",
   },
 ];
 
@@ -115,5 +119,5 @@ export const builtOn = [
   { name: "Solana", src: "/brands/solana.svg" },
   { name: "USDC", src: "/brands/usdc.svg" },
   { name: "Kamino", src: "/brands/kamino.svg" },
-  { name: "Cloudflare", src: "/brands/cloudflare.svg" },
+  { name: "TxLINE", src: "/brands/solana.svg" },
 ];

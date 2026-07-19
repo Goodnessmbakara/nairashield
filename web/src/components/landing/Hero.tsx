@@ -26,7 +26,7 @@ export default function Hero() {
           transition={enter(TIMING.heroTitle - 0.1)}
           className="rounded-full border border-primary/30 bg-primary/10 px-4 py-1.5 text-sm font-medium text-primary shadow-sm"
         >
-          ✨ Agent First Architecture
+          Autonomous agent · Live TxLINE
         </motion.div>
         
         <motion.h1
