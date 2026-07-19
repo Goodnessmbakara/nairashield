@@ -36,16 +36,13 @@ function isFeedIssue(tick: Tick): boolean {
   );
 }
 
-function statusChip(tick: Tick): { label: string; color: "success" | "warning" | "default" | "danger" } {
+function statusChip(tick: Tick): { label: string; color: "success" | "warning" | "default" | "danger" | "primary" | "secondary" } {
   if (isTradeAbort(tick)) return { label: "Safe abort", color: "warning" };
-  if (isFeedIssue(tick)) return { label: "Feed issue", color: "warning" };
-  if (tick.decision.action === "TRADE" && tick.status === "Executed") {
-    return { label: "Take opportunity", color: "success" };
-  }
+  if (isFeedIssue(tick)) return { label: "Feed issue", color: "secondary" };
   if (tick.decision.action === "TRADE") {
-    return { label: "Take opportunity", color: "success" };
+    return { label: "TRADE", color: "warning" };
   }
-  return { label: actionLabel(tick.decision.action), color: "default" };
+  return { label: "HOLD", color: "success" };
 }
 
 function MarketBlock({ tick }: { tick: Tick }) {
@@ -126,16 +123,18 @@ const StatusPanel = ({ tick, flash }: { tick: Tick; flash?: boolean }) => {
       className={cn(
         "rounded-medium border bg-content2 px-4 py-4 transition-[box-shadow,border-color] duration-500",
         flash && !abort && !feed
-          ? "border-success-400 shadow-[0_0_0_1px_rgba(23,201,100,0.35)]"
+          ? "border-primary-300 shadow-[0_0_0_1px_rgba(0,107,187,0.25)]"
           : flash && (abort || feed)
-            ? "border-warning-400 shadow-[0_0_0_1px_rgba(245,165,36,0.35)]"
+            ? "border-warning-400 shadow-[0_0_0_1px_rgba(240,140,0,0.3)]"
             : abort || feed
-              ? "border-warning-200"
-              : "border-default-200",
+              ? "border-warning-200 bg-warning-50/40"
+              : isTrade
+                ? "border-warning-200 bg-warning-50/30"
+                : "border-success-200 bg-success-50/30",
       )}
     >
       <div className="flex flex-wrap items-center gap-2">
-        <p className="text-tiny font-medium uppercase tracking-wide text-default-500">
+        <p className="text-tiny font-semibold uppercase tracking-wide text-primary">
           Current status
         </p>
         <Chip
@@ -361,15 +360,15 @@ const DecisionFeed = React.forwardRef<HTMLDivElement, FeedProps>(
       <Card
         ref={ref}
         className={cn(
-          "border border-transparent bg-content1/90 p-5 backdrop-blur-md dark:border-default-100 sm:p-6",
+          "border border-primary-100 bg-content1 p-5 shadow-sm shadow-primary-100/30 dark:border-default-100 sm:p-6",
           className,
         )}
       >
         <div className="flex flex-wrap items-center gap-2">
-          <h2 className="text-medium font-medium text-default-900">Recent checks</h2>
+          <h2 className="font-display text-medium font-semibold text-foreground">Recent checks</h2>
           <Chip
             classNames={{ content: "font-medium text-[0.65rem]" }}
-            color={lastSyncedAt && Date.now() - lastSyncedAt < 8_000 ? "success" : "default"}
+            color={lastSyncedAt && Date.now() - lastSyncedAt < 8_000 ? "success" : "primary"}
             radius="sm"
             size="sm"
             startContent={
@@ -378,7 +377,7 @@ const DecisionFeed = React.forwardRef<HTMLDivElement, FeedProps>(
                   "ml-1 h-1.5 w-1.5 rounded-full",
                   lastSyncedAt && Date.now() - lastSyncedAt < 8_000
                     ? "animate-pulse bg-success"
-                    : "bg-default-400",
+                    : "bg-primary",
                 )}
               />
             }

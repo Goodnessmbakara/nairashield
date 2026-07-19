@@ -22,10 +22,16 @@ function kickoffLabel(start: number): string {
 
 function FixtureRow({ f }: { f: WatchedFixture }) {
   return (
-    <div className="flex items-start gap-3 rounded-large border border-default-100 bg-content2/60 px-3 py-2.5">
+    <div
+      className={
+        f.live
+          ? "flex items-start gap-3 rounded-large border border-success-200 bg-success-50/80 px-3 py-2.5"
+          : "flex items-start gap-3 rounded-large border border-primary-100 bg-primary-50/40 px-3 py-2.5"
+      }
+    >
       <div
         className="mt-0.5 h-8 w-1.5 shrink-0 rounded-full"
-        style={{ background: f.live ? "#17c964" : "#d4d4d8" }}
+        style={{ background: f.live ? "#12A866" : "#50A9FF" }}
       />
 
       <div className="flex min-w-0 flex-1 flex-col gap-1">
@@ -34,7 +40,7 @@ function FixtureRow({ f }: { f: WatchedFixture }) {
             <img src={f.flag1} alt="" width={18} height={13} className="shrink-0 rounded-[2px]" />
           )}
           <span className="truncate text-small font-medium text-foreground">{f.p1}</span>
-          <span className="shrink-0 text-tiny text-default-400">vs</span>
+          <span className="shrink-0 text-tiny text-primary-400">vs</span>
           {f.flag2 && (
             <img src={f.flag2} alt="" width={18} height={13} className="shrink-0 rounded-[2px]" />
           )}
@@ -46,9 +52,9 @@ function FixtureRow({ f }: { f: WatchedFixture }) {
               ● Live
             </span>
           ) : (
-            <span className="text-tiny text-default-400">{kickoffLabel(f.start)}</span>
+            <span className="text-tiny text-primary-600/80">{kickoffLabel(f.start)}</span>
           )}
-          <span className="rounded-full bg-warning-50 px-1.5 py-0.5 text-[0.6rem] font-medium leading-tight text-warning-600">
+          <span className="rounded-full bg-secondary-50 px-1.5 py-0.5 text-[0.6rem] font-medium leading-tight text-secondary-700 ring-1 ring-secondary-100">
             {f.competition || "World Cup"}
           </span>
         </div>
@@ -121,19 +127,19 @@ export default function WatchingPanel() {
   return (
     <Card
       id="watching"
-      className="scroll-mt-4 border border-transparent bg-content1 dark:border-default-100"
+      className="scroll-mt-4 border border-primary-100 bg-content1 shadow-sm shadow-primary-100/40 dark:border-default-100"
     >
       <CardBody className="gap-3 p-4">
         <div className="flex items-start justify-between gap-2">
           <div className="flex items-center gap-2">
-            <div className="flex rounded-medium border border-default-100 bg-default-50 p-1.5">
-              <Icon className="text-default-500" icon="solar:eye-linear" width={16} />
+            <div className="flex rounded-medium border border-primary-100 bg-primary-50 p-1.5">
+              <Icon className="text-primary" icon="solar:eye-bold" width={16} />
             </div>
             <div>
               <h2 className="font-display text-medium font-semibold leading-tight text-foreground">
                 Watching
               </h2>
-              <p className="text-tiny leading-tight text-default-400">
+              <p className="text-tiny leading-tight text-primary-600/70">
                 TxLINE · Solana-anchored odds
               </p>
             </div>

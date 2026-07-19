@@ -42,8 +42,15 @@
   }
 
   body {
-    @apply min-h-screen bg-background font-sans text-foreground antialiased;
+    @apply min-h-screen font-sans text-foreground antialiased;
     font-feature-settings: "ss01" on, "cv11" on;
+    /* Soft brand wash so the app isn’t flat grey */
+    background-color: #eef4ff;
+    background-image:
+      radial-gradient(ellipse 80% 50% at 10% -10%, rgba(0, 131, 224, 0.14), transparent 55%),
+      radial-gradient(ellipse 60% 40% at 100% 0%, rgba(107, 61, 255, 0.1), transparent 50%),
+      radial-gradient(ellipse 50% 30% at 50% 100%, rgba(18, 168, 102, 0.06), transparent 45%);
+    background-attachment: fixed;
   }
 
   h1,

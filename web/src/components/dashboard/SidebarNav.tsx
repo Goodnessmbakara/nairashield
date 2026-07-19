@@ -35,7 +35,7 @@ const SidebarNav = React.forwardRef<HTMLElement, SidebarNavProps>(
           const active = item.key === activeKey;
           const icon = item.icon ? (
             <Icon
-              className={cn(active ? "text-foreground" : "text-default-500")}
+              className={cn(active ? "text-primary" : "text-default-500")}
               icon={item.icon}
               width={20}
             />
@@ -49,9 +49,10 @@ const SidebarNav = React.forwardRef<HTMLElement, SidebarNavProps>(
                   aria-current={active ? "page" : undefined}
                   aria-label={item.title}
                   className={cn(
-                    active && "bg-default-100 text-foreground",
+                    active && "bg-primary-50 text-primary",
                     !active && "text-default-600",
                   )}
+                  color={active ? "primary" : "default"}
                   radius="lg"
                   size="md"
                   variant={active ? "flat" : "light"}
@@ -70,9 +71,10 @@ const SidebarNav = React.forwardRef<HTMLElement, SidebarNavProps>(
               className={cn(
                 "h-11 justify-start gap-3 px-3",
                 active
-                  ? "bg-default-100 font-semibold text-foreground"
-                  : "text-default-600 data-[hover=true]:bg-default-100/80 data-[hover=true]:text-foreground",
+                  ? "bg-primary-50 font-semibold text-primary data-[hover=true]:bg-primary-100"
+                  : "text-default-600 data-[hover=true]:bg-primary-50/70 data-[hover=true]:text-primary-700",
               )}
+              color={active ? "primary" : "default"}
               radius="lg"
               startContent={icon}
               variant={active ? "flat" : "light"}

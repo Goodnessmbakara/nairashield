@@ -8,7 +8,7 @@ const herouiTheme = path.dirname(
   }),
 );
 
-/** Midnight Signal — light + dark. Light is the default product surface. */
+/** Midnight Signal blue — primary brand. */
 const primaryScale = {
   50: "#E8F3FF",
   100: "#D1E7FF",
@@ -21,6 +21,54 @@ const primaryScale = {
   800: "#004984",
   900: "#00315E",
   DEFAULT: "#006BBB",
+  foreground: "#FFFFFF",
+};
+
+/** Yield / HOLD — teal emerald. */
+const successScale = {
+  50: "#E8FBF3",
+  100: "#C6F5E0",
+  200: "#8EEBC4",
+  300: "#4FD9A0",
+  400: "#1FC47D",
+  500: "#12A866",
+  600: "#0C8A53",
+  700: "#0A6E44",
+  800: "#095738",
+  900: "#07472E",
+  DEFAULT: "#12A866",
+  foreground: "#FFFFFF",
+};
+
+/** TRADE / urgency — warm amber. */
+const warningScale = {
+  50: "#FFF8EB",
+  100: "#FFEEC7",
+  200: "#FFD88A",
+  300: "#FFBE4D",
+  400: "#FFA41C",
+  500: "#F08C00",
+  600: "#C96E00",
+  700: "#A35604",
+  800: "#86450B",
+  900: "#6E390C",
+  DEFAULT: "#F08C00",
+  foreground: "#1A1000",
+};
+
+/** Secondary accent — indigo violet for chips / secondary actions. */
+const secondaryScale = {
+  50: "#F0EEFF",
+  100: "#E0DBFF",
+  200: "#C5BAFF",
+  300: "#A390FF",
+  400: "#8360FF",
+  500: "#6B3DFF",
+  600: "#5828E8",
+  700: "#481FC2",
+  800: "#3B1B9C",
+  900: "#2F1779",
+  DEFAULT: "#6B3DFF",
   foreground: "#FFFFFF",
 };
 
@@ -75,14 +123,17 @@ module.exports = {
       themes: {
         light: {
           colors: {
-            background: "#F5F8FF",
+            background: "#EEF4FF",
             foreground: "#0D111B",
             focus: "#006BBB",
             content1: "#FFFFFF",
-            content2: "#F2F5FB",
-            content3: "#E8EBF1",
-            content4: "#DBDEE3",
+            content2: "#EAF1FF",
+            content3: "#DCE7FA",
+            content4: "#C9D7F0",
             primary: primaryScale,
+            secondary: secondaryScale,
+            success: successScale,
+            warning: warningScale,
           },
         },
         dark: {
@@ -108,6 +159,9 @@ module.exports = {
               DEFAULT: "#50A9FF",
               foreground: "#030303",
             },
+            secondary: secondaryScale,
+            success: successScale,
+            warning: warningScale,
           },
         },
       },

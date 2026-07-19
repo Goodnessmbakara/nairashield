@@ -189,34 +189,50 @@ export default function Dashboard() {
       setupReason!,
     );
 
-  /** THE product moment — one card: decide on live odds */
+  /** THE product moment — color-coded decision on live odds */
   const decisionHero = (
     <Card
       className={cn(
-        "border bg-content1 dark:border-default-100",
-        isTrade ? "border-success-200" : "border-transparent",
+        "overflow-hidden border-2 bg-content1 shadow-sm",
+        isTrade
+          ? "border-warning-300 shadow-warning-100/80"
+          : "border-primary-200 shadow-primary-100/60",
         liveFlashId && latest && liveFlashId === latest.id
-          ? "shadow-[0_0_0_1px_rgba(23,201,100,0.35)]"
+          ? "ring-2 ring-primary-300 ring-offset-2"
           : "",
       )}
     >
+      <div
+        className={cn(
+          "h-1.5 w-full",
+          isTrade
+            ? "bg-gradient-to-r from-warning-400 via-warning-500 to-warning-600"
+            : "bg-gradient-to-r from-primary-400 via-primary-500 to-secondary-500",
+        )}
+      />
       <CardBody className="gap-4 p-5 sm:p-6">
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div>
-            <p className="text-tiny font-medium uppercase tracking-wide text-default-500">
+            <p className="text-tiny font-semibold uppercase tracking-wide text-primary">
               Agent decision
             </p>
             <div className="mt-2 flex flex-wrap items-center gap-2">
               <Chip
-                classNames={{ content: "text-sm font-semibold px-1" }}
-                color={isTrade ? "success" : "default"}
+                classNames={{
+                  base: isTrade ? "bg-warning-100" : "bg-success-100",
+                  content: "text-sm font-bold px-1",
+                }}
+                color={isTrade ? "warning" : "success"}
                 radius="sm"
                 size="lg"
                 variant="flat"
               >
                 {isTrade ? "TRADE" : "HOLD"}
               </Chip>
-              <span className="text-tiny tabular-nums text-default-400">
+              <Chip color="primary" radius="sm" size="sm" variant="dot">
+                TxLINE
+              </Chip>
+              <span className="text-tiny tabular-nums text-default-500">
                 {latest?.receivedAt ||
                   (liveReason?.at
                     ? new Date(liveReason.at).toLocaleTimeString()
@@ -226,24 +242,26 @@ export default function Dashboard() {
               </span>
             </div>
           </div>
-          <div className="text-right">
-            <p className="text-tiny text-default-400">Yield bar</p>
-            <p className="font-display text-medium font-semibold tabular-nums text-foreground">
+          <div className="rounded-large bg-success-50 px-3 py-2 text-right ring-1 ring-success-100">
+            <p className="text-tiny font-medium text-success-700">Yield bar</p>
+            <p className="font-display text-medium font-semibold tabular-nums text-success-700">
               {(yieldApy * 100).toFixed(2)}% APY
             </p>
-            <p className="text-[0.65rem] text-default-400">
-              leave yield only if Y_net clears edge
+            <p className="text-[0.65rem] text-success-600/80">
+              leave yield only if edge clears
             </p>
           </div>
         </div>
 
-        <p className="text-medium leading-7 text-foreground sm:text-large">{reason || "Run a check to load the latest decision from live TxLINE odds."}</p>
+        <p className="text-medium leading-7 text-foreground sm:text-large">
+          {reason || "Run a check to load the latest decision from live TxLINE odds."}
+        </p>
 
-        <div className="rounded-medium border border-default-100 bg-content2 px-4 py-3">
-          <p className="text-tiny text-default-500">Market</p>
+        <div className="rounded-medium border border-primary-100 bg-primary-50/60 px-4 py-3">
+          <p className="text-tiny font-medium text-primary-600">Market</p>
           <p className="mt-0.5 text-medium font-semibold text-foreground">{matchName}</p>
           {market?.matchId && (
-            <p className="mt-1 font-mono text-[0.65rem] text-default-400">
+            <p className="mt-1 font-mono text-[0.65rem] text-primary-500/80">
               fixture · {market.matchId}
               {market.status ? ` · ${market.status}` : ""}
             </p>
@@ -252,36 +270,58 @@ export default function Dashboard() {
 
         {odds.length > 0 ? (
           <div className="grid grid-cols-3 gap-2">
-            {odds.map(([k, v]) => (
-              <div
-                key={k}
-                className="flex flex-col items-center rounded-medium border border-default-100 bg-content2 px-2 py-3"
-              >
-                <span className="text-[0.65rem] uppercase text-default-400">{k}</span>
-                <span className="mt-1 font-mono text-xl font-semibold tabular-nums text-foreground">
-                  {Number(v).toFixed(2)}
-                </span>
-              </div>
-            ))}
+            {odds.map(([k, v], i) => {
+              const tones = [
+                "border-primary-200 bg-primary-50",
+                "border-secondary-200 bg-secondary-50",
+                "border-warning-200 bg-warning-50",
+              ];
+              const textTones = ["text-primary-700", "text-secondary-700", "text-warning-700"];
+              return (
+                <div
+                  key={k}
+                  className={cn(
+                    "flex flex-col items-center rounded-medium border px-2 py-3",
+                    tones[i % 3],
+                  )}
+                >
+                  <span className={cn("text-[0.65rem] font-medium uppercase", textTones[i % 3])}>
+                    {k}
+                  </span>
+                  <span
+                    className={cn(
+                      "mt-1 font-mono text-xl font-semibold tabular-nums",
+                      textTones[i % 3],
+                    )}
+                  >
+                    {Number(v).toFixed(2)}
+                  </span>
+                </div>
+              );
+            })}
           </div>
         ) : (
-          <p className="text-tiny text-default-400">
+          <p className="text-tiny text-default-500">
             Odds appear here when TxLINE returns a usable snapshot for the active fixture.
           </p>
         )}
 
         {movement.length > 0 && (
           <div className="flex flex-col gap-2">
-            <p className="text-tiny font-medium text-default-500">Sharp movement (&gt;3%)</p>
+            <p className="text-tiny font-semibold text-warning-700">Sharp movement (&gt;3%)</p>
             {movement.map((m) => (
               <div
                 key={m.outcome}
-                className="flex items-center justify-between rounded-medium border border-default-100 bg-content2 px-3 py-2"
+                className="flex items-center justify-between rounded-medium border border-warning-100 bg-warning-50 px-3 py-2"
               >
-                <span className="text-small text-foreground">{m.outcome}</span>
-                <span className="text-tiny tabular-nums text-default-500">
+                <span className="text-small font-medium text-foreground">{m.outcome}</span>
+                <span className="text-tiny tabular-nums text-default-600">
                   {m.fromOdds} → {m.toOdds}{" "}
-                  <span className={m.direction === "shortening" ? "text-success" : ""}>
+                  <span
+                    className={
+                      m.direction === "shortening" ? "font-semibold text-success-600" : "text-warning-600"
+                    }
+                  >
                     ({m.changePct > 0 ? "+" : ""}
                     {Math.round(m.changePct * 1000) / 10}%)
                   </span>
@@ -291,18 +331,19 @@ export default function Dashboard() {
           </div>
         )}
 
-        <div className="flex flex-wrap items-center gap-2 border-t border-default-100 pt-3">
+        <div className="flex flex-wrap items-center gap-2 border-t border-primary-100 pt-3">
           <Button
-            className="bg-default-foreground font-medium text-background"
+            className="font-semibold"
+            color="primary"
             isLoading={loading}
             radius="full"
             size="sm"
-            startContent={!loading ? <Icon icon="solar:play-linear" width={14} /> : undefined}
+            startContent={!loading ? <Icon icon="solar:play-bold" width={14} /> : undefined}
             onPress={() => poll()}
           >
             Run check
           </Button>
-          <span className="text-tiny text-default-400">
+          <span className="text-tiny text-primary-600/80">
             Same loop as the minute cron — TxLINE in, decide, hold or trade.
           </span>
         </div>
@@ -381,12 +422,13 @@ export default function Dashboard() {
             </div>
 
             <Button
-              className="t-btn-press t-btn-primary bg-default-foreground font-medium text-background"
+              className="t-btn-press font-semibold"
+              color="primary"
               isDisabled={!configured}
               isLoading={loading}
               radius="full"
               size="sm"
-              startContent={!loading && <Icon icon="solar:play-linear" width={14} />}
+              startContent={!loading && <Icon icon="solar:play-bold" width={14} />}
               onPress={() => poll()}
             >
               Run check
