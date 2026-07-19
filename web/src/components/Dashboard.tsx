@@ -13,7 +13,6 @@ import {
 import { Icon } from "@iconify/react";
 import DecisionFeed from "./DecisionFeed";
 import PortfolioView from "./dashboard/PortfolioView";
-import ProofsView from "./dashboard/ProofsView";
 import ReplaysView from "./dashboard/ReplaysView";
 import WatchingPanel from "./dashboard/WatchingPanel";
 import GateCard from "./ui/GateCard";
@@ -24,7 +23,6 @@ import LogoutConfirmModal from "./dashboard/LogoutConfirmModal";
 import { dashboardNav, type DashboardView } from "./dashboard/sidebar-items";
 import { dedupeTicksForFeed, displayAgentReason, isIdleHold } from "../lib/ticks";
 import { TeamFlag, flagUrl } from "../lib/flags";
-import { verifyFixture, type MatchVerification } from "../lib/agent";
 import { useAgent } from "../hooks/useAgent";
 import { useAuth } from "../hooks/useAuth";
 
@@ -34,7 +32,6 @@ const VIEW_KEY = "ns_dashboard_view";
 const VIEW_TITLES: Record<DashboardView, string> = {
   overview: "Agent",
   decisions: "History",
-  proofs: "Proofs",
   replays: "Replays",
   portfolio: "Portfolio",
 };
@@ -65,9 +62,6 @@ export default function Dashboard() {
   const [mobileOpen, setMobileOpen] = React.useState(false);
   const [view, setView] = React.useState<DashboardView>("overview");
   const [, setClock] = React.useState(0);
-  const [liveVerify, setLiveVerify] = React.useState<MatchVerification | null>(null);
-  const [verifyBusy, setVerifyBusy] = React.useState(false);
-  const lastVerifiedId = React.useRef<string | null>(null);
   const {
     isOpen: logoutOpen,
     onOpen: openLogout,
@@ -189,40 +183,6 @@ export default function Dashboard() {
         : undefined;
   const integrations = agentStatus?.integrations ?? {};
   const integrationOrder = ["txline", "jupiter", "kamino", "wallet", "ai"] as const;
-
-  // Self-verify current fixture (no human click) — agent cron also verifies every tick
-  const fixtureIdForVerify = market?.matchId ?? null;
-  React.useEffect(() => {
-    if (!isAuthenticated || !configured || !fixtureIdForVerify) return;
-    if (lastVerifiedId.current === fixtureIdForVerify && liveVerify) return;
-
-    let cancelled = false;
-    const run = async () => {
-      setVerifyBusy(true);
-      try {
-        const v = await verifyFixture(fixtureIdForVerify);
-        if (!cancelled) {
-          setLiveVerify(v);
-          lastVerifiedId.current = fixtureIdForVerify;
-        }
-      } catch {
-        /* tick verification may still appear after poll */
-      } finally {
-        if (!cancelled) setVerifyBusy(false);
-      }
-    };
-    void run();
-    const t = window.setInterval(() => void run(), 60_000);
-    return () => {
-      cancelled = true;
-      window.clearInterval(t);
-    };
-  }, [isAuthenticated, configured, fixtureIdForVerify]); // eslint-disable-line react-hooks/exhaustive-deps
-
-  const verification =
-    latest?.verification ??
-    agentStatus?.lastTick?.verification ??
-    liveVerify;
 
   if (authLoading) {
     return (
@@ -538,48 +498,6 @@ export default function Dashboard() {
           </div>
         )}
 
-        {/* VAR — single compact row */}
-        <div
-          className={cn(
-            "flex flex-wrap items-center gap-2 rounded-medium border px-2.5 py-1.5",
-            verifyBusy
-              ? "border-primary-200 bg-primary-50"
-              : verification?.ok
-                ? "border-success-200 bg-success-50"
-                : verification
-                  ? "border-warning-200 bg-warning-50"
-                  : "border-primary-100 bg-primary-50/40",
-          )}
-        >
-          <Chip
-            color={
-              verifyBusy
-                ? "primary"
-                : verification?.ok
-                  ? "success"
-                  : verification
-                    ? "warning"
-                    : "primary"
-            }
-            size="sm"
-            variant="flat"
-            classNames={{ content: "text-[0.6rem] font-bold" }}
-          >
-            {verifyBusy
-              ? "VAR · …"
-              : verification?.ok
-                ? "VAR · OK"
-                : verification
-                  ? "VAR · SOFT"
-                  : "VAR"}
-          </Chip>
-          <span className="min-w-0 flex-1 truncate text-[0.65rem] text-default-600">
-            {verifyBusy
-              ? "Checking on-chain…"
-              : verification?.reason || "Self-verify on tick"}
-          </span>
-        </div>
-
         <div className="flex flex-wrap items-center gap-2 border-t border-primary-100 pt-2">
           <Chip
             classNames={{ content: "text-[0.6rem] font-semibold" }}
@@ -598,19 +516,8 @@ export default function Dashboard() {
           >
             {loading ? "Agent ticking…" : "Autonomous · every 60s"}
           </Chip>
-          <Button
-            className="font-semibold"
-            color="secondary"
-            radius="full"
-            size="sm"
-            startContent={<Icon icon="solar:shield-check-bold" width={14} />}
-            variant="flat"
-            onPress={() => changeView("proofs")}
-          >
-            Proofs
-          </Button>
           <span className="text-[0.65rem] text-primary-600/80">
-            No human in the loop · TxLINE → Y_net → {isSimMode ? "paper TRADE" : "HOLD/TRADE"}
+            Live TxLINE · Y_net · no human in the loop
           </span>
         </div>
       </CardBody>
@@ -799,11 +706,9 @@ export default function Dashboard() {
                   liveReason={liveReason}
                   loading={loading}
                   ticks={ticks}
-                  onOpenProofs={() => changeView("proofs")}
                 />
               )}
 
-              {view === "proofs" && <ProofsView ticks={ticks} />}
               {view === "replays" && <ReplaysView />}
               {view === "portfolio" && <PortfolioView />}
             </div>

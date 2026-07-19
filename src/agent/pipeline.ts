@@ -162,14 +162,8 @@ export async function runAgentTick(env: Env): Promise<AgentTickResult> {
 				booksFull: simBooks,
 			});
 
-			// Soft verify in sim: note failure but do not block the paper TRADE
-			// (live path still hard-blocks). Odds remain real TxLINE.
-			if (decision.action === "TRADE" && !verification.ok) {
-				decision = {
-					...decision,
-					reason: `${decision.reason} [sim: on-chain VAR soft — ${verification.reason}]`,
-				};
-			}
+			// Soft verify in sim: never block paper TRADE, never paste eng-ops
+			// (devnet/RPC secrets) into the decision reason shown to judges.
 
 			let status: AgentTickResult["status"] = allSettlements.some((s) => s.success)
 				? "Settled"
@@ -259,7 +253,8 @@ export async function runAgentTick(env: Env): Promise<AgentTickResult> {
 		if (decision.action === "TRADE" && !verification.ok) {
 			decision = {
 				action: "HOLD",
-				reason: `Match not verified on-chain before kickoff — capital stays in yield. ${verification.reason}`,
+				reason:
+					"Match not verified on-chain yet — capital stays in yield until the fixture proof is available.",
 				yieldApy: config.yieldApy,
 				makerMargin: config.makerMargin,
 			};

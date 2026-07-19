@@ -52,9 +52,14 @@ function apiOrigin(config: AgentConfig): string {
 	return (config.txlineApiUrl ?? "").replace(/\/api\/?$/, "").replace(/\/$/, "");
 }
 
+/**
+ * Only the explicit TxLINE *dev* host is devnet.
+ * Production World Cup / TxODDS track uses https://txline.txodds.com → mainnet.
+ * Do not match bare "devnet" substrings (avoids mis-labeling in UI).
+ */
 function isDevnet(config: AgentConfig): boolean {
 	const u = apiOrigin(config).toLowerCase();
-	return u.includes("txline-dev") || u.includes("devnet");
+	return u.includes("txline-dev.txodds.com") || u.includes("txline-dev");
 }
 
 function programIdFor(config: AgentConfig): PublicKey {

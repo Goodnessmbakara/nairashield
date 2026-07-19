@@ -337,16 +337,7 @@ const StatusPanel = ({ tick, flash }: { tick: Tick; flash?: boolean }) => {
       )}
       <MarketBlock tick={tick} />
       <YieldBlock tick={tick} />
-      {tick.verification && (
-        <div className="mt-2 text-tiny text-default-500">
-          On-chain:{" "}
-          <span className={tick.verification.ok ? "text-success-600" : "text-default-600"}>
-            {tick.verification.ok ? "verified" : "not verified"}
-          </span>
-          {" — "}
-          {tick.verification.reason}
-        </div>
-      )}
+      {/* Never dump RPC/cluster/devnet eng-ops into the live feed */}
     </div>
   );
 };
