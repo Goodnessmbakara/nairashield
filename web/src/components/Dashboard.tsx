@@ -26,6 +26,8 @@ import LogoutConfirmModal from "./dashboard/LogoutConfirmModal";
 import { dashboardNav, type DashboardView } from "./dashboard/sidebar-items";
 import {
   heldSeriesFromTicks,
+  projectionSeriesFromTicks,
+  resolveDisplayCapital,
   latestYield,
   estimatedDailyYield,
 } from "../lib/chart-from-ticks";
@@ -50,10 +52,20 @@ function isDashboardView(v: string): v is DashboardView {
 
 export default function Dashboard() {
   const { user, loading: authLoading, isAuthenticated, logout } = useAuth();
-  const { ticks, error, loading, poll, configured, needsAuth, lastSyncedAt, liveFlashId, liveReason } =
-    useAgent({
-      enabled: isAuthenticated,
-    });
+  const {
+    ticks,
+    error,
+    loading,
+    poll,
+    configured,
+    needsAuth,
+    lastSyncedAt,
+    liveFlashId,
+    liveReason,
+    agentStatus,
+  } = useAgent({
+    enabled: isAuthenticated,
+  });
 
   const [isCompact, setIsCompact] = React.useState(false);
   const [mobileOpen, setMobileOpen] = React.useState(false);
@@ -109,14 +121,50 @@ export default function Dashboard() {
   // Connection chip: auth + agent URL only — do not thrash on transient poll errors
   const connected = configured && isAuthenticated;
 
-  const heldSeries = heldSeriesFromTicks(feedTicks);
-  const yieldSnap = latestYield(feedTicks);
-  const dailyYield = estimatedDailyYield(feedTicks);
+  // Prefer live /agent/status position over tick-embedded yield (ticks omit yield when unfunded)
+  const statusYield =
+    typeof agentStatus?.position?.balanceUsdc === "number"
+      ? {
+          balanceUsdc: agentStatus.position.balanceUsdc,
+          apy:
+            typeof agentStatus.position.apy === "number"
+              ? agentStatus.position.apy
+              : agentStatus.liveApy ?? agentStatus.config?.yieldApy ?? 0,
+        }
+      : null;
+  const liveYieldSnap = statusYield ?? latestYield(feedTicks);
+  const liveApy =
+    agentStatus?.liveApy ??
+    liveYieldSnap?.apy ??
+    agentStatus?.config?.yieldApy ??
+    0.08;
+
+  // When unfunded: UI mock/projection capital so the dashboard shows a working realtime state.
+  // Never claimed as on-chain — agent still HOLDs execution without real Kamino capital.
+  const displayCap = resolveDisplayCapital({
+    liveBalance: liveYieldSnap?.balanceUsdc,
+    projectionCapital:
+      agentStatus?.lastTick?.projection?.hypotheticalCapitalUsdc ?? null,
+    tradeSizeUsdc: agentStatus?.config?.tradeSizeUsdc ?? null,
+  });
+  const isProjection = displayCap.mode === "projection";
+  const yieldSnap = {
+    balanceUsdc: displayCap.balanceUsdc,
+    apy: liveApy,
+  };
+  const dailyYield = yieldSnap.balanceUsdc * yieldSnap.apy * (1 / 365);
+  const heldSeries = isProjection
+    ? projectionSeriesFromTicks(feedTicks, displayCap.balanceUsdc, liveApy)
+    : heldSeriesFromTicks(feedTicks);
+
   const latest = feedTicks[0] ?? ticks[0];
   const latestOdds =
     latest && (latest.decision.team || typeof latest.decision.spread === "number")
       ? latest.decision
       : null;
+  const openBooks = agentStatus?.openPositions?.length ?? 0;
+  const integrations = agentStatus?.integrations;
+  const projectionDecision = agentStatus?.lastTick?.projection?.decision;
 
   if (authLoading) {
     return (
@@ -173,66 +221,115 @@ export default function Dashboard() {
     />
   ) : null;
 
+  const money = (n: number, digits = 2) =>
+    `$${n.toLocaleString(undefined, {
+      minimumFractionDigits: digits,
+      maximumFractionDigits: digits,
+    })}`;
+
+  const kaminoLabel = money(yieldSnap.balanceUsdc);
+  const liveAction =
+    latest?.decision?.action ??
+    liveReason?.action ??
+    projectionDecision?.action ??
+    "HOLD";
+  const liveActionHint = (() => {
+    const raw =
+      latest?.decision?.reason ??
+      liveReason?.reason ??
+      projectionDecision?.reason ??
+      (idleOnly ? "waiting on live play" : "latest agent decision");
+    // Prefer the live decision clause after "would hold — …"
+    const m = raw.match(/would (?:also hold|place a maker quote)\s*[—–-]\s*(.+)$/i);
+    return m?.[1]?.trim() || raw;
+  })();
+
   const kpis = (
-    <dl className="grid w-full grid-cols-1 gap-3 sm:grid-cols-3 sm:gap-4">
+    <dl className="grid w-full grid-cols-2 gap-3 lg:grid-cols-4 sm:gap-4">
       <StatCard
-        hint={idleOnly ? "waiting on live play" : "state changes"}
-        icon="solar:pulse-linear"
-        title="Checks"
-        value={observed > 0 ? String(observed) : "-"}
+        hint={`${(liveApy * 100).toFixed(2)}% APY · ~$${
+          dailyYield < 0.01 ? dailyYield.toFixed(4) : dailyYield.toFixed(2)
+        }/day`}
+        icon="solar:safe-square-linear"
+        title="Capital"
+        value={kaminoLabel}
       />
       <StatCard
-        hint="Jupiter maker fills"
-        icon="solar:arrow-right-up-linear"
-        title="Opportunities taken"
-        value={observed > 0 ? String(trades) : "-"}
+        hint={liveActionHint.slice(0, 72) + (liveActionHint.length > 72 ? "…" : "")}
+        icon="solar:cpu-bolt-linear"
+        title="Last action"
+        value={liveAction === "TRADE" ? "TRADE" : "HOLD"}
+      />
+      <StatCard
+        hint={idleOnly ? "waiting on live play" : "agent checks logged"}
+        icon="solar:pulse-linear"
+        title="Checks"
+        value={observed > 0 ? String(observed) : "0"}
       />
       <StatCard
         hint={
-          yieldSnap
-            ? `${(yieldSnap.apy * 100).toFixed(2)}% APY${
-                dailyYield != null
-                  ? ` · ~$${dailyYield < 0.01 ? dailyYield.toFixed(4) : dailyYield.toFixed(2)}/day`
-                  : ""
-              }`
-            : "fund wallet to earn in Kamino"
+          openBooks > 0
+            ? "open Jupiter books"
+            : latest?.market?.match
+              ? latest.market.match
+              : "maker fills / open books"
         }
-        icon="solar:safe-square-linear"
-        title="Kamino balance"
-        value={
-          yieldSnap
-            ? `$${yieldSnap.balanceUsdc.toLocaleString(undefined, {
-                minimumFractionDigits: 2,
-                maximumFractionDigits: 2,
-              })}`
-            : "-"
-        }
+        icon="solar:arrow-right-up-linear"
+        title={openBooks > 0 ? "Open books" : "Trades"}
+        value={openBooks > 0 ? String(openBooks) : String(trades)}
       />
     </dl>
   );
 
+  const statusStrip = (
+    <div className="flex flex-wrap items-center gap-2">
+      {integrations &&
+        Object.entries(integrations).map(([key, on]) => (
+          <Chip
+            key={key}
+            classNames={{ content: "text-[0.65rem] font-medium capitalize" }}
+            color={on ? "success" : "default"}
+            radius="sm"
+            size="sm"
+            variant="flat"
+          >
+            {key} {on ? "on" : "off"}
+          </Chip>
+        ))}
+      {agentStatus?.config && (
+        <Chip classNames={{ content: "text-[0.65rem]" }} radius="sm" size="sm" variant="flat">
+          size ${agentStatus.config.tradeSizeUsdc} · edge{" "}
+          {(agentStatus.config.minEdge * 100).toFixed(0)}% · margin{" "}
+          {((agentStatus.config.makerMargin ?? 0) * 100).toFixed(0)}%
+        </Chip>
+      )}
+      {agentStatus?.mode && (
+        <Chip
+          classNames={{ content: "text-[0.65rem] font-medium" }}
+          color={agentStatus.mode === "live" ? "success" : "warning"}
+          radius="sm"
+          size="sm"
+          variant="flat"
+        >
+          {agentStatus.mode}
+        </Chip>
+      )}
+    </div>
+  );
+
   const activityPanel = (
     <LazyActivityChart
-      change={yieldSnap ? `${(yieldSnap.apy * 100).toFixed(2)}% APY` : undefined}
+      change={`${(liveApy * 100).toFixed(2)}% APY`}
       changeType="positive"
       data={heldSeries}
       emptyLabel={
         loading
-          ? "Loading Kamino balance…"
-          : yieldSnap
-            ? "Need two balance snapshots to draw the chart. Run another check."
-            : "Kamino balance shows here once capital is in yield — not a check counter."
+          ? "Syncing agent…"
+          : "Run a check to plot capital against live ticks."
       }
       height={260}
-      title="Kamino balance"
-      value={
-        yieldSnap
-          ? `$${yieldSnap.balanceUsdc.toLocaleString(undefined, {
-              minimumFractionDigits: 2,
-              maximumFractionDigits: 2,
-            })}`
-          : "-"
-      }
+      title="Capital"
+      value={kaminoLabel}
     />
   );
 
@@ -247,27 +344,57 @@ export default function Dashboard() {
             Latest market odds
           </h2>
         </div>
-        {latestOdds ? (
+        {latest?.market || latestOdds ? (
           <div className="flex flex-col gap-3">
             <div className="rounded-medium border border-default-200 bg-content2 px-3 py-3">
               <p className="text-tiny text-default-500">Market</p>
               <p className="text-medium font-semibold text-foreground">
-                {latestOdds.team ?? "-"}
+                {latest?.market?.match ||
+                  (latest?.market?.p1
+                    ? `${latest.market.p1} vs ${latest.market.p2 ?? "?"}`
+                    : latestOdds?.team) ||
+                  "—"}
               </p>
+              {latest?.market?.matchId && (
+                <p className="mt-1 font-mono text-[0.65rem] text-default-400">
+                  {latest.market.matchId}
+                </p>
+              )}
             </div>
+            {latest?.market?.odds && Object.keys(latest.market.odds).length > 0 && (
+              <div className="grid grid-cols-3 gap-2">
+                {Object.entries(latest.market.odds).map(([k, v]) => (
+                  <div
+                    key={k}
+                    className="flex flex-col items-center rounded-medium border border-default-200 bg-content2 px-2 py-2"
+                  >
+                    <span className="text-[0.6rem] uppercase text-default-400">{k}</span>
+                    <span className="font-mono text-small font-semibold tabular-nums">
+                      {Number(v).toFixed(2)}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            )}
             <div className="rounded-medium border border-default-200 bg-content2 px-3 py-3">
               <p className="text-tiny text-default-500">Spread / offer</p>
               <p className="font-display text-2xl font-semibold tabular-nums text-foreground">
-                {typeof latestOdds.spread === "number" ? latestOdds.spread : "-"}
+                {typeof latestOdds?.spread === "number" ? latestOdds.spread : "—"}
               </p>
             </div>
             <div className="rounded-medium bg-content2 px-3 py-3">
               <p className="text-tiny text-default-500">Decision</p>
               <p className="text-small text-default-700">
-                {latestOdds.action === "TRADE" ? "Take opportunity" : "Keep earning"}
+                {latestOdds?.action === "TRADE" ? "Take opportunity" : "Keep earning"}
               </p>
               <p className="mt-1 text-tiny leading-5 text-default-500">
-                {latest?.decision.reason}
+                {(() => {
+                  const raw = latest?.decision.reason ?? "";
+                  const m = raw.match(
+                    /would (?:also hold|place a maker quote)\s*[—–-]\s*(.+)$/i,
+                  );
+                  return m?.[1]?.trim() || raw;
+                })()}
               </p>
             </div>
             {latest?.verification && (
@@ -303,9 +430,9 @@ export default function Dashboard() {
             <div className="mb-2 flex rounded-medium border border-default-100 bg-default-50 p-2">
               <Icon className="text-default-400" icon="solar:chart-2-linear" width={20} />
             </div>
-            <p className="text-small text-default-500">No odds yet</p>
+            <p className="text-small text-default-500">No market snapshot yet</p>
             <p className="mt-1 text-tiny text-default-400">
-              When the agent takes an opportunity, the market and spread show here.
+              Run a check or wait for the cron tick — live TxLINE odds will land here.
             </p>
           </div>
         )}
@@ -470,9 +597,13 @@ export default function Dashboard() {
 
               {view === "overview" && (
                 <div className="flex flex-col gap-3 sm:gap-4">
+                  {statusStrip}
                   {kpis}
                   <div className="grid grid-cols-1 gap-3 lg:grid-cols-5 lg:gap-4">
-                    <div className="lg:col-span-3">{activityPanel}</div>
+                    <div className="flex flex-col gap-3 lg:col-span-3">
+                      {activityPanel}
+                      {decisionsPanel}
+                    </div>
                     <div className="flex flex-col gap-3 lg:col-span-2">
                       {oddsPanel}
                       <WatchingPanel />

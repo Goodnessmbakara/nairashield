@@ -1,7 +1,7 @@
-## Research Results: NairaShield Hackathon Integration
+## Research Results: Retegol Hackathon Integration
 
 ### TL;DR
-Building NairaShield requires integrating Kamino for yield and either Monaco Protocol or BetDEX for the execution layer, with TxLINE acting as the data oracle. Because TxLINE provides a consensus feed, the agent cannot arbitrage against TxLINE itself. Instead, it must act as an In-Play Market Maker on a decentralized order book (like BetDEX/Monaco) using TxLINE as the pricing baseline, or perform cross-book arbitrage comparing TxLINE's implied probabilities against existing AMM pools.
+Building Retegol requires integrating Kamino for yield and either Monaco Protocol or BetDEX for the execution layer, with TxLINE acting as the data oracle. Because TxLINE provides a consensus feed, the agent cannot arbitrage against TxLINE itself. Instead, it must act as an In-Play Market Maker on a decentralized order book (like BetDEX/Monaco) using TxLINE as the pricing baseline, or perform cross-book arbitrage comparing TxLINE's implied probabilities against existing AMM pools.
 
 ### Findings
 

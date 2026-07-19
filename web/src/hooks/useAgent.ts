@@ -1,7 +1,16 @@
 "use client";
 
 import React from "react";
-import { fetchAgentHistory, fetchAgentStatus, fetchTick, isConfigured, type Tick } from "../lib/agent";
+import {
+  failureSimulationTick,
+  fetchAgentHistory,
+  fetchAgentStatus,
+  fetchTick,
+  isConfigured,
+  normalizeTick,
+  type AgentStatusPayload,
+  type Tick,
+} from "../lib/agent";
 import { getToken } from "../lib/auth";
 import { dedupeTicksForFeed, isIdleHold } from "../lib/ticks";
 
@@ -20,6 +29,7 @@ export function useAgent(options?: { enabled?: boolean }) {
   const [lastSyncedAt, setLastSyncedAt] = React.useState<number | null>(null);
   const [liveFlashId, setLiveFlashId] = React.useState<string | null>(null);
   const [liveReason, setLiveReason] = React.useState<{ action: string; reason: string; at: string } | null>(null);
+  const [agentStatus, setAgentStatus] = React.useState<AgentStatusPayload | null>(null);
   const inFlight = React.useRef(false);
   const historyInFlight = React.useRef(false);
   const statusInFlight = React.useRef(false);
@@ -84,7 +94,29 @@ export function useAgent(options?: { enabled?: boolean }) {
     try {
       const status = await fetchAgentStatus(signal);
       if (!mounted.current || signal?.aborted) return;
-      if (status?.currentStatus) setLiveReason(status.currentStatus);
+      if (!status) return;
+      setAgentStatus(status);
+      if (status.currentStatus) setLiveReason(status.currentStatus);
+      // Merge lastTick from status so overview has market/odds even before history poll
+      if (status.lastTick?.id && status.lastTick.decision) {
+        const lt = normalizeTick({
+          id: status.lastTick.id,
+          at: status.lastTick.at,
+          status: status.lastTick.status,
+          decision: status.lastTick.decision,
+          market: status.lastTick.market,
+          yield: status.lastTick.yield,
+          execution: status.lastTick.execution,
+          movement: status.lastTick.movement,
+          verification: status.lastTick.verification,
+        });
+        setTicks((prev) => {
+          if (prev.some((t) => t.id === lt.id)) return prev;
+          knownIds.current.add(lt.id);
+          return dedupeTicksForFeed([lt, ...prev]).slice(0, 40);
+        });
+        setLastSyncedAt(Date.now());
+      }
     } catch {
       /* quiet */
     } finally {
@@ -151,12 +183,29 @@ export function useAgent(options?: { enabled?: boolean }) {
       } else if (msg.includes("PUBLIC_AGENT_URL") || msg.includes("not set")) {
         setNeedsAuth(false);
         setError("Agent isn’t connected yet. Live numbers will appear when it is.");
-      } else if (msg.includes("Cannot reach")) {
-        setNeedsAuth(false);
-        setError("Can’t reach the agent right now. Try again in a moment.");
       } else {
+        // Simulate the agent’s failure action in the app: HOLD, no trade, capital stays in yield.
+        // Does not invent odds, balances, or fills — only an honest failure narrative.
         setNeedsAuth(false);
-        setError(msg || "Something went wrong loading the latest check.");
+        const fail = failureSimulationTick(
+          msg.includes("Cannot reach")
+            ? "can’t reach the agent right now"
+            : msg || "check failed",
+        );
+        setError(null);
+        setLastSyncedAt(Date.now());
+        lastReason.current = fail.decision.reason;
+        knownIds.current.add(fail.id);
+        setLiveFlashId(fail.id);
+        window.setTimeout(() => {
+          if (mounted.current) setLiveFlashId((id) => (id === fail.id ? null : id));
+        }, 2500);
+        setTicks((prev) => dedupeTicksForFeed([fail, ...prev]).slice(0, 40));
+        setLiveReason({
+          action: fail.decision.action,
+          reason: fail.decision.reason,
+          at: new Date().toISOString(),
+        });
       }
     } finally {
       inFlight.current = false;
@@ -218,6 +267,7 @@ export function useAgent(options?: { enabled?: boolean }) {
     lastSyncedAt,
     liveFlashId,
     liveReason,
+    agentStatus,
     poll: () => {
       void poll();
       void refreshStatus();

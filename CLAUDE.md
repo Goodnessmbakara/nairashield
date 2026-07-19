@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## What this is
 
-NairaShield: an autonomous AI market-making agent for sports prediction markets on Solana, built for the TxODDS Superteam Earn hackathon. A Cloudflare Worker (`src/`) runs the agent loop; an Astro dashboard (`web/`) is a separate sub-project with its own package.json and its own `CLAUDE.md` (use `astro dev --background` there).
+Retegol: an autonomous AI market-making agent for sports prediction markets on Solana, built for the TxODDS Superteam Earn hackathon. A Cloudflare Worker (`src/`, deploy name `retegol-bot`) runs the agent loop; an Astro dashboard (`web/`) is a separate sub-project with its own package.json and its own `CLAUDE.md` (use `astro dev --background` there).
 
 `HANDOFF.md` is the detailed operational reference (TxLINE activation flow, Kamino caveats, Jupiter market mapping, deploy steps). The README predates the BetDEX→Jupiter switch in places; when they disagree, trust HANDOFF.md and the code.
 

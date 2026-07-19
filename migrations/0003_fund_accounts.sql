@@ -1,4 +1,4 @@
--- NairaShield fund accounts schema
+-- Retegol fund accounts schema
 
 CREATE TABLE IF NOT EXISTS user_wallets (
   user_sub          TEXT PRIMARY KEY,

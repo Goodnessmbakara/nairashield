@@ -1,7 +1,5 @@
 "use client";
 
-/* Agitation (PAS step 2) - concrete costs, no contrast-slop slogans */
-
 import React from "react";
 import { Card, CardBody } from "@heroui/react";
 import { motion, useReducedMotion } from "framer-motion";

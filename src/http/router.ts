@@ -221,14 +221,10 @@ export async function handleFetch(request: Request, env: Env): Promise<Response>
 		if (auth instanceof Response) return auth;
 
 		const tick = await runAgentTick(env);
-		// Dashboard-compatible shape + full tick
-		// Dashboard keeps Executed|Skipped; full status is on tick.status
-		const uiStatus =
-			tick.status === "Executed"
-				? "Executed"
-				: tick.status === "Error"
-					? "Skipped"
-					: "Skipped";
+		// Dashboard-compatible shape + full tick.
+		// Executed = real fill. Everything else is non-fill (HOLD / abort / error / settle).
+		// Full status (Aborted, Error, Settled) stays on tick.status for the app.
+		const uiStatus = tick.status === "Executed" ? "Executed" : "Skipped";
 		return json({
 			status: uiStatus,
 			decision: tick.decision,
@@ -283,34 +279,90 @@ export async function handleFetch(request: Request, env: Env): Promise<Response>
 		const auth = await requireSession(request, env);
 		if (auth instanceof Response) return auth;
 		const config = loadAgentConfig(env);
-		
-		// Use local SQLite agent ticks to determine which past fixtures we have
-		const fixtureIds = await getPastFixtures(env, 20);
-		
-		const fixtures: any[] = [];
-		const history: Record<string, any[]> = {};
-		const scores: Record<string, any> = {};
 
-		await Promise.all(fixtureIds.map(async (fid) => {
-			const ticks = await getFixtureTicks(env, fid);
-			if (ticks.length > 0) {
+		// Tick-backed fixtures (Postgres JSONB) + TxLINE past feed, matched by id
+		const [tickFixtureIds, pastFromFeed] = await Promise.all([
+			getPastFixtures(env, 40),
+			fetchPastFixtures(config),
+		]);
+
+		const byId = new Map<string, {
+			fixtureId: string;
+			p1: string;
+			p2: string;
+			start: number | string;
+			flag1?: string;
+			flag2?: string;
+			competition?: string;
+			competitionId?: number;
+			source: "ticks" | "txline" | "both";
+		}>();
+
+		for (const f of pastFromFeed.slice(0, 40)) {
+			byId.set(f.fixtureId, {
+				fixtureId: f.fixtureId,
+				p1: f.p1,
+				p2: f.p2,
+				start: f.start,
+				flag1: f.flag1,
+				flag2: f.flag2,
+				competition: f.competition,
+				competitionId: f.competitionId,
+				source: "txline",
+			});
+		}
+
+		const history: Record<string, Awaited<ReturnType<typeof getFixtureTicks>>> = {};
+		const scores: Record<string, { home: number; away: number; minute?: number }> = {};
+
+		await Promise.all(
+			tickFixtureIds.map(async (fid) => {
+				const ticks = await getFixtureTicks(env, fid);
+				if (ticks.length === 0) return;
 				history[fid] = ticks;
-				const fTicks = ticks.filter(t => t.market?.p1 && t.market?.p2);
-				const lastTick = fTicks.length > 0 ? fTicks[fTicks.length - 1] : ticks[0];
-				
-				fixtures.push({
+				const withTeams = ticks.filter((t) => t.market?.p1 && t.market?.p2);
+				const last = withTeams.length > 0 ? withTeams[withTeams.length - 1]! : ticks[0]!;
+				const m = last.market;
+				const existing = byId.get(fid);
+				byId.set(fid, {
 					fixtureId: fid,
-					p1: lastTick.market?.p1 || 'Team A',
-					p2: lastTick.market?.p2 || 'Team B',
-					start: lastTick.at,
+					p1: m?.p1 || existing?.p1 || (m?.match?.split(/\s+vs\s+/i)[0]?.trim() ?? "Team A"),
+					p2: m?.p2 || existing?.p2 || (m?.match?.split(/\s+vs\s+/i)[1]?.trim() ?? "Team B"),
+					start: existing?.start ?? last.at,
+					flag1: existing?.flag1,
+					flag2: existing?.flag2,
+					competition: existing?.competition,
+					competitionId: existing?.competitionId,
+					source: existing ? "both" : "ticks",
 				});
+			}),
+		);
 
+		const fixtures = Array.from(byId.values()).sort((a, b) => {
+			const ta = typeof a.start === "number" ? a.start : Date.parse(String(a.start)) || 0;
+			const tb = typeof b.start === "number" ? b.start : Date.parse(String(b.start)) || 0;
+			return tb - ta;
+		});
+
+		// Scores for fixtures we have (cap concurrent TxLINE calls)
+		const scoreIds = fixtures.slice(0, 24).map((f) => f.fixtureId);
+		await Promise.all(
+			scoreIds.map(async (fid) => {
 				const score = await fetchScoreSnapshot(config, fid);
 				if (score) scores[fid] = score;
-			}
-		}));
+			}),
+		);
 
-		return json({ fixtures, history, scores });
+		return json({
+			fixtures,
+			history,
+			scores,
+			meta: {
+				tickFixtures: tickFixtureIds.length,
+				txlinePast: pastFromFeed.length,
+				matched: fixtures.filter((f) => f.source === "both").length,
+			},
+		});
 	}
 
 	if (method === "GET" && path === "/agent/replays/odds") {
@@ -318,10 +370,16 @@ export async function handleFetch(request: Request, env: Env): Promise<Response>
 		if (auth instanceof Response) return auth;
 		const fixtureId = (url.searchParams.get("fixtureId") || "").trim();
 		if (!fixtureId) return json({ error: "fixtureId required" }, 400);
-		
+
 		const config = loadAgentConfig(env);
-		const odds = await fetchOddsUpdates(config, fixtureId);
-		return json({ odds });
+		// Real TxLINE history: GET /api/odds/updates/{fixtureId} (1X2 sampled)
+		const odds = await fetchOddsUpdates(config, fixtureId, { maxPoints: 300 });
+		return json({
+			odds,
+			count: odds.length,
+			fixtureId,
+			source: "txline",
+		});
 	}
 
 	// ── Agent: history ────────────────────────────────────────────────

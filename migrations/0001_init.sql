@@ -1,4 +1,4 @@
--- NairaShield D1 schema — migration 0001
+-- Retegol D1 schema — migration 0001
 -- Users: email/password accounts. Google OAuth users are NOT stored here
 -- (their identity lives in the session only; sub prefix = "google:").
 

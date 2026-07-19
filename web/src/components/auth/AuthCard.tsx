@@ -48,7 +48,7 @@ const AuthCard = React.forwardRef<HTMLDivElement, AuthCardProps>(
 
     React.useEffect(() => {
       if (!configured) {
-        console.warn("[auth] PUBLIC_AGENT_URL is not set — sign-in cannot reach the worker.");
+        console.warn("[auth] PUBLIC_AGENT_URL is not set — sign-in cannot reach the agent API.");
       }
     }, [configured]);
 

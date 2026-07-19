@@ -1,20 +1,20 @@
-# Product Requirements Document (PRD): NairaShield & ConsensusBot
+# Product Requirements Document (PRD): Retegol & ConsensusBot
 **Target Hackathon:** TxODDS Superteam Earn Hackathon
 **Primary Track:** Trading Tools and Agents
 **Secondary Track:** Prediction Markets and Settlement
 
 ## 1. Executive Summary & Value Proposition
-**NairaShield** is an automated portfolio-management and autonomous sports-trading agent built on Solana. It solves the opportunity cost of idle capital in Web3 sports betting. 
+**Retegol** is an automated portfolio-management and autonomous sports-trading agent built on Solana. It solves the opportunity cost of idle capital in Web3 sports betting. 
 
-**Innovation & Novelty (Hackathon Focus):** Traditional bettors hold idle stablecoins that lose purchasing power to inflation (a major issue for Nigerian Web3 users). NairaShield keeps 100% of the user's capital deployed in decentralized yield vaults (Kamino/Jupiter Lend) earning continuous interest. An autonomous agent running on **Cloudflare Workers edge compute** monitors the **TxLINE API** for high-probability market inefficiencies. When an opportunity is detected, the agent's LLM brain evaluates the trade, atomically recalls capital, executes the position on BetDEX, and routes the settlement back to the yield vault.
+**Innovation & Novelty (Hackathon Focus):** Traditional bettors hold idle stablecoins that lose purchasing power to inflation (a major issue for Nigerian Web3 users). Retegol keeps 100% of the user's capital deployed in decentralized yield vaults (Kamino/Jupiter Lend) earning continuous interest. An autonomous agent running on **Cloudflare Workers edge compute** monitors the **TxLINE API** for high-probability market inefficiencies. When an opportunity is detected, the agent's LLM brain evaluates the trade, atomically recalls capital, executes the position on BetDEX, and routes the settlement back to the yield vault.
 
 ---
 
 ## 2. System Architecture & Autonomous Logic
 *(Addresses the "Logic & Code Architecture" and "Autonomous Operation" criteria)*
 
-### 2.1 The NairaShield Execution Engine
-NairaShield operates entirely without manual human input once funded, utilizing a modern Edge AI stack:
+### 2.1 The Retegol Execution Engine
+Retegol operates entirely without manual human input once funded, utilizing a modern Edge AI stack:
 
 1. **Yield State:** User deposits USDC. The contract instantly deposits this into Kamino Finance.
 2. **Monitoring State:** A Cloudflare Worker (triggered via Cron) streams the TxLINE API to ingest real-time consensus odds.

@@ -1,4 +1,4 @@
-# NairaShield Fund Accounts — Design Spec
+# Retegol Fund Accounts — Design Spec
 **Date:** 2026-07-18
 **Status:** Approved
 
@@ -6,7 +6,7 @@
 
 ## Overview
 
-Allow authenticated users to deposit USDC on Solana into a shared trading pool, view their proportional share, and request withdrawals. The pool is managed by the existing NairaShield agent (Kamino yield + Jupiter Predict market-making). Share accounting is a simple ledger: `net_usdc / pool_total` at query time. All amounts stored as micro-USDC (BIGINT, 6 decimal places; 1 USDC = 1_000_000).
+Allow authenticated users to deposit USDC on Solana into a shared trading pool, view their proportional share, and request withdrawals. The pool is managed by the existing Retegol agent (Kamino yield + Jupiter Predict market-making). Share accounting is a simple ledger: `net_usdc / pool_total` at query time. All amounts stored as micro-USDC (BIGINT, 6 decimal places; 1 USDC = 1_000_000).
 
 ---
 

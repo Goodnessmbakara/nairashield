@@ -76,22 +76,45 @@ function FixtureRow({ f }: { f: WatchedFixture }) {
 
 export default function WatchingPanel() {
   const [fixtures, setFixtures] = React.useState<WatchedFixture[] | null>(null);
+  const [loadError, setLoadError] = React.useState<string | null>(null);
 
   React.useEffect(() => {
     const ctrl = new AbortController();
-    const load = () => fetchFixtures(ctrl.signal).then(setFixtures).catch(() => {});
-    load();
-    const t = setInterval(load, 15_000);
+    let t: number | undefined;
+
+    const load = async () => {
+      try {
+        const next = await fetchFixtures(ctrl.signal);
+        if (ctrl.signal.aborted) return;
+        setFixtures(next);
+        setLoadError(null);
+      } catch {
+        if (!ctrl.signal.aborted) {
+          setLoadError("Could not refresh fixtures.");
+        }
+      }
+    };
+
+    void load();
+    // Live score / kickoff status — poll often enough to feel real-time
+    t = window.setInterval(() => void load(), 10_000);
+
+    const onVis = () => {
+      if (!document.hidden) void load();
+    };
+    document.addEventListener("visibilitychange", onVis);
+
     return () => {
       ctrl.abort();
-      clearInterval(t);
+      if (t) window.clearInterval(t);
+      document.removeEventListener("visibilitychange", onVis);
     };
   }, []);
 
   const list = (fixtures ?? [])
     .slice()
     .sort((a, b) => Number(b.live) - Number(a.live) || a.start - b.start)
-    .slice(0, 4);
+    .slice(0, 8);
 
   const liveCount = list.filter((f) => f.live).length;
 
@@ -147,7 +170,9 @@ export default function WatchingPanel() {
             <span className="text-small">Loading fixtures…</span>
           </div>
         ) : list.length === 0 ? (
-          <p className="py-6 text-center text-small text-default-400">Feed unavailable right now.</p>
+          <p className="py-6 text-center text-small text-default-400">
+            {loadError ?? "No fixtures in the feed right now. Sign in if you haven’t."}
+          </p>
         ) : (
           <div className="flex flex-col gap-2">
             {list.map((f) => (

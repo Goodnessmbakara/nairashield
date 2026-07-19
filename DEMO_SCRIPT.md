@@ -1,49 +1,44 @@
-# Retegol — 5-Minute Demo Script
+# Retegol — Demo Script (≤5 min)
 
-**Record during a live match** (France–England Jul 18 21:00 UTC or the final
-Jul 19 ~19:00 UTC) so real odds are on screen. Tabs pre-opened:
-dashboard (https://retegol.pages.dev, signed in), Solscan on the wallet, repo.
+**Goal:** One working loop. TxLINE → decide → show it. No feature tour.
+
+**URLs (pre-open):**
+- App: https://retegol.vercel.app (signed in)
+- API: https://retegol-bot.zanbuilds.workers.dev/health
+- Repo: https://github.com/Goodnessmbakara/nairashield
+
+**Best time:** During/near Spain vs Argentina kickoff (or any World Cup fixture with odds on TxLINE).
 
 ---
 
-**0:00 – 0:35 — The problem.**
-"Sports bettors hold stablecoins that sit idle between plays, losing value —
-a real problem for Nigerian Web3 users. Retegol is an autonomous agent
-that never lets capital sleep: USDC earns Kamino yield by default, and only
-moves into a bet when live math says the edge beats the yield it gives up."
+### 0:00–0:40 — Problem
+Capital sits idle between plays. Retegol keeps USDC in **Kamino yield** and only leaves yield when live **TxLINE** odds say the edge beats that yield (Y_net).
 
-**0:35 – 1:10 — Architecture in 30 seconds.** (repo README diagram)
-"A Cloudflare Worker wakes every minute. It reads live consensus odds from
-TxLINE — cryptographically anchored on Solana — runs a Llama-3 brain over
-Y_net = spread capture minus yield opportunity cost, and executes on
-Jupiter Predict with its own keypair. No human input after deploy."
+### 0:40–1:20 — Autonomy
+Cloudflare Worker cron every minute. Same loop as **Run check** on the dashboard. No human in the loop after deploy.
 
-**1:10 – 2:30 — Live dashboard tour.**
-- Watching panel: "these fixtures come from the authenticated TxLINE feed —
-  this match is LIVE right now."
-- Odds panel: live decimal odds updating.
-- Sharp movement rows when odds shift >3%: "the agent flags market moves
-  between its own snapshots."
-- Decisions feed: read one real reasoning line aloud. Emphasize: "every
-  number here is real or absent — the system fails closed, never fabricates."
+### 1:20–3:00 — Live product (core)
+1. **Watching** — fixtures from `GET /api/fixtures/snapshot` (World Cup).
+2. **Run check** — pulls `GET /api/odds/snapshot/{fixtureId}`.
+3. **Agent activity** — real HOLD or TRADE reason (never fake fills).
+4. **Odds / movement** — consensus prices; flag >3% shifts between ticks.
+5. **Health** — `txline`, `jupiter`, `kamino`, `wallet` integrations green.
 
-**2:30 – 3:30 — THE moment.**
-Point at the newest decision during live play:
-- If unfunded: "no capital is deployed, so the agent runs its brain as a
-  dry-run: here it says it WOULD place this maker quote and why."
-- If funded: show a TRADE tick → open Solscan → the actual Kamino withdraw
-  and Jupiter order transactions. "That bet was decided, signed, and placed
-  by the agent alone."
+If unfunded: agent still **decides on live odds** (dry-run path) — say so once, then show the decision, not a funding lecture.
 
-**3:30 – 4:15 — Risk management + honesty.**
-"Open positions are marked to market every tick: +8 probability points →
-take profit; −6 → stop loss — real position closes, policy-driven. And when
-nothing is live, the agent tells the truth" — show a 'no match in play —
-capital stays in yield' entry with the ×N collapse.
+If TRADE: open Solscan for withdraw/order txs.
 
-**4:15 – 5:00 — Close.**
-"Built on TxLINE fixtures, odds, and scores endpoints; activated via the
-on-chain subscribe flow using devnet SOL. Production-ready shape: deployed
-worker, cron autonomy, honest failure modes. Roadmap: per-user agents with
-keyless custody via session-signer policies — design in ROADMAP.md.
-Retegol: capital that never sits still."
+### 3:00–4:00 — Safety
+- Safe abort if Kamino withdraw or Jupiter order fails (capital stays/returns to yield).
+- Empty odds interval → honest HOLD, not a fake market.
+
+### 4:00–5:00 — Close
+“One agent, one loop: TxLINE data, Y_net policy in code, autonomous cron, fail closed. Production-shaped Worker + dashboard. Repo public.”
+
+---
+
+### Do not demo (unless asked)
+Portfolio deposit flows, FossaPay, half-built admin, endless replay tuning.
+
+### If odds are empty right now
+Show fixtures list + HOLD: “no match in play / next fixture…” — that *is* correct autonomous behavior.

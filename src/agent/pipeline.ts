@@ -1,5 +1,5 @@
 /**
- * NairaShield agent pipeline — PRD §2.1 states:
+ * Retegol agent pipeline — PRD §2.1 states:
  *
  * 0. Settlement → close confirmed books, redeposit to Kamino
  * 1. Market     → real TxLINE consensus odds (fair value)
@@ -224,6 +224,7 @@ export async function runAgentTick(env: Env): Promise<AgentTickResult> {
 				: undefined;
 
 		if (decision.action === "TRADE") {
+			const intended = decision;
 			const exec = await executeTradePath(
 				env,
 				config,
@@ -238,22 +239,24 @@ export async function runAgentTick(env: Env): Promise<AgentTickResult> {
 				settlements: settlements.length ? settlements : undefined,
 				riskExits: riskExits.length ? riskExits : undefined,
 			};
-			if (exec.aborted) {
-				status = "Aborted";
-			} else if (exec.order?.status === "placed") {
+
+			if (exec.order?.status === "placed" && !exec.aborted) {
 				status = "Executed";
 			} else {
+				// Safe failure path for the app: never leave a "TRADE" that didn't land.
+				// Recover capital if we already withdrew, then report HOLD + why.
 				status = "Aborted";
-				execution = {
-					...execution,
-					aborted: true,
-					abortReason: exec.order?.error || exec.abortReason || "Order failed",
-				};
+				execution.aborted = true;
+				execution.abortReason =
+					exec.abortReason || exec.order?.error || "Trade path failed";
+
 				if (exec.withdrewUsdc && exec.withdrewUsdc > 0) {
 					const redeposit = await depositYield(env, config, exec.withdrewUsdc);
 					execution.redeposited = redeposit.success;
 					execution.redepositTxid = redeposit.txid;
 				}
+
+				decision = decisionAfterTradeFailure(intended, execution);
 			}
 		}
 
@@ -273,13 +276,17 @@ export async function runAgentTick(env: Env): Promise<AgentTickResult> {
 		});
 	} catch (e) {
 		const detail = e instanceof Error ? e.message : String(e);
+		// Honest failure simulation for the app: HOLD only — no invented trade.
 		const tick: AgentTickResult = {
 			id,
 			at: new Date().toISOString(),
 			status: "Error",
 			decision: {
 				action: "HOLD",
-				reason: detail || "Tick failed before a decision could complete.",
+				reason:
+					detail
+						? `Check failed — ${detail}. No trade placed; capital stays in yield.`
+						: "Tick failed before a decision could complete. No trade placed; capital stays in yield.",
 			},
 			error: detail,
 			durationMs: Date.now() - started,
@@ -305,6 +312,43 @@ function describeRiskExits(exits: import("../types").RiskExit[]): string {
 				`${x.reason === "take_profit" ? "Took profit on" : "Cut loss on"} ${x.team} (${x.edgePoints > 0 ? "+" : ""}${Math.round(x.edgePoints * 100)} pts).`,
 		)
 		.join(" ");
+}
+
+/**
+ * App-facing decision when a TRADE attempt fails mid-path.
+ * Keeps intended side/team for context; action is always HOLD (nothing executed).
+ * Never invents fills, balances, or order IDs.
+ */
+function decisionAfterTradeFailure(
+	intended: Decision,
+	execution: TickExecution,
+): Decision {
+	const why = execution.abortReason || "Trade path failed";
+	const target = intended.team
+		? ` on ${intended.team}${intended.side ? ` (${intended.side})` : ""}`
+		: "";
+
+	let recovery: string;
+	if (!execution.withdrewUsdc) {
+		recovery = "Capital never left Kamino.";
+	} else if (execution.redeposited) {
+		recovery = "Capital was redeposited to Kamino.";
+	} else {
+		recovery = "Withdraw happened but redeposit failed — check the agent wallet.";
+	}
+
+	return {
+		action: "HOLD",
+		reason: `Trade aborted${target} — ${why}. ${recovery}`,
+		team: intended.team,
+		side: intended.side,
+		spread: intended.spread,
+		fairOdds: intended.fairOdds,
+		edge: intended.edge,
+		yNet: intended.yNet,
+		yieldApy: intended.yieldApy,
+		makerMargin: intended.makerMargin,
+	};
 }
 
 async function finishTick(args: {
@@ -461,10 +505,34 @@ async function executeTradePath(
 export async function getAgentStatus(env: Env): Promise<AgentStatus> {
 	const config = loadAgentConfig(env);
 	const flags = integrationFlags(env, config);
-	const position = (await loadPosition(env)) ?? undefined;
 	const lastTick = await getLastTick(env);
 	const openPositions = await listOpenPositions(env);
 	const ready = isAgentReady(env, config);
+
+	// Prefer live on-chain Kamino read; fall back to DB snapshot inside getYieldPosition.
+	let position: Awaited<ReturnType<typeof getYieldPosition>> = null;
+	let liveApy: number | null = null;
+	let walletUsdc: number | null = null;
+	try {
+		const { fetchKaminoApy, getWalletUsdcBalance } = await import("../integrations/kamino");
+		const [pos, apy, free] = await Promise.all([
+			getYieldPosition(env, config),
+			fetchKaminoApy(config),
+			getWalletUsdcBalance(env, config),
+		]);
+		position = pos;
+		liveApy = apy;
+		walletUsdc = free;
+	} catch {
+		position = (await loadPosition(env)) ?? null;
+	}
+
+	const livePos = position?.source === "live" ? position : undefined;
+	const capital: AgentStatus["capital"] = livePos
+		? "funded"
+		: flags.wallet
+			? "unfunded"
+			: "unknown";
 
 	let currentStatus: { action: string; reason: string; at: string } | undefined;
 	try {
@@ -478,7 +546,10 @@ export async function getAgentStatus(env: Env): Promise<AgentStatus> {
 		ok: ready,
 		mode: ready ? "live" : "not_ready",
 		integrations: flags,
-		position: position?.source === "live" ? position : undefined,
+		position: livePos,
+		walletUsdc,
+		liveApy,
+		capital,
 		openPositions,
 		lastTick,
 		currentStatus,

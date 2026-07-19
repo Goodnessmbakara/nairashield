@@ -4,9 +4,9 @@ import React from "react";
 import { Avatar, Badge, Card, Chip, cn } from "@heroui/react";
 import { Icon } from "@iconify/react";
 import type { Tick } from "../lib/agent";
-import { dedupeTicksForFeed, isIdleHold } from "../lib/ticks";
+import { dedupeTicksForFeed, displayAgentReason, isIdleHold } from "../lib/ticks";
 
-const MAX_HISTORY = 8;
+const MAX_HISTORY = 12;
 
 function actionLabel(action: string) {
   if (action === "TRADE") return "Take opportunity";
@@ -14,15 +14,124 @@ function actionLabel(action: string) {
   return action;
 }
 
+/** Only real trade-path aborts — not feed/odds/config HOLDs. */
+function isTradeAbort(tick: Tick): boolean {
+  if (tick.execution?.aborted) return true;
+  if (tick.agentStatus === "Aborted") return true;
+  const r = tick.decision.reason.toLowerCase();
+  return r.includes("trade aborted");
+}
+
+/** Transient check / feed failures (still HOLD — no trade). */
+function isFeedIssue(tick: Tick): boolean {
+  if (isTradeAbort(tick)) return false;
+  if (tick.agentStatus === "Error") return true;
+  const r = tick.decision.reason.toLowerCase();
+  return (
+    r.includes("check failed") ||
+    r.includes("agent check failed") ||
+    r.includes("tick failed") ||
+    (r.includes("returned") && r.includes("usable odds")) ||
+    r.includes("txline snapshot")
+  );
+}
+
+function statusChip(tick: Tick): { label: string; color: "success" | "warning" | "default" | "danger" } {
+  if (isTradeAbort(tick)) return { label: "Safe abort", color: "warning" };
+  if (isFeedIssue(tick)) return { label: "Feed issue", color: "warning" };
+  if (tick.decision.action === "TRADE" && tick.status === "Executed") {
+    return { label: "Take opportunity", color: "success" };
+  }
+  if (tick.decision.action === "TRADE") {
+    return { label: "Take opportunity", color: "success" };
+  }
+  return { label: actionLabel(tick.decision.action), color: "default" };
+}
+
+function MarketBlock({ tick }: { tick: Tick }) {
+  const m = tick.market;
+  if (!m?.match && !m?.matchId && !m?.odds) return null;
+  const oddsEntries = m.odds ? Object.entries(m.odds) : [];
+  return (
+    <div className="mt-3 flex flex-col gap-2 border-t border-default-100 pt-3">
+      {(m.match || m.p1) && (
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="text-tiny text-default-500">Market</span>
+          <span className="text-small font-medium text-foreground">
+            {m.match || `${m.p1 ?? "?"} vs ${m.p2 ?? "?"}`}
+          </span>
+          {typeof m.minute === "number" && (
+            <Chip classNames={{ content: "text-[0.6rem]" }} radius="sm" size="sm" variant="flat">
+              {m.minute}&apos;
+            </Chip>
+          )}
+          {m.status && (
+            <Chip classNames={{ content: "text-[0.6rem]" }} radius="sm" size="sm" variant="flat">
+              {m.status}
+            </Chip>
+          )}
+        </div>
+      )}
+      {oddsEntries.length > 0 && (
+        <div className="grid grid-cols-3 gap-1.5">
+          {oddsEntries.map(([k, v]) => (
+            <div
+              key={k}
+              className="flex flex-col items-center rounded-medium bg-default-50 px-2 py-1.5"
+            >
+              <span className="text-[0.6rem] uppercase text-default-400">{k}</span>
+              <span className="font-mono text-small font-semibold tabular-nums text-foreground">
+                {Number(v).toFixed(2)}
+              </span>
+            </div>
+          ))}
+        </div>
+      )}
+      {m.matchId && (
+        <p className="font-mono text-[0.65rem] text-default-400">fixture · {m.matchId}</p>
+      )}
+    </div>
+  );
+}
+
+function YieldBlock({ tick }: { tick: Tick }) {
+  const y = tick.yield;
+  if (typeof y?.balanceUsdc !== "number") return null;
+  return (
+    <div className="mt-2 flex flex-wrap items-center gap-2 text-tiny text-default-500">
+      <span>
+        Kamino{" "}
+        <span className="font-medium tabular-nums text-default-700">
+          ${y.balanceUsdc.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+        </span>
+      </span>
+      {typeof y.apy === "number" && (
+        <span className="tabular-nums">{(y.apy * 100).toFixed(2)}% APY</span>
+      )}
+      {y.source && (
+        <Chip classNames={{ content: "text-[0.6rem]" }} radius="sm" size="sm" variant="flat">
+          {y.source}
+        </Chip>
+      )}
+    </div>
+  );
+}
+
 const StatusPanel = ({ tick, flash }: { tick: Tick; flash?: boolean }) => {
-  const isTrade = tick.decision.action === "TRADE";
+  const chip = statusChip(tick);
+  const abort = isTradeAbort(tick);
+  const feed = isFeedIssue(tick);
   return (
     <div
       className={cn(
         "rounded-medium border bg-content2 px-4 py-4 transition-[box-shadow,border-color] duration-500",
-        flash
+        flash && !abort && !feed
           ? "border-success-400 shadow-[0_0_0_1px_rgba(23,201,100,0.35)]"
-          : "border-default-200",
+          : flash && (abort || feed)
+            ? "border-warning-400 shadow-[0_0_0_1px_rgba(245,165,36,0.35)]"
+            : abort || feed
+              ? "border-warning-200"
+              : "border-default-200",
       )}
     >
       <div className="flex flex-wrap items-center gap-2">
@@ -31,17 +140,28 @@ const StatusPanel = ({ tick, flash }: { tick: Tick; flash?: boolean }) => {
         </p>
         <Chip
           classNames={{ content: "font-medium text-[0.65rem]" }}
-          color={isTrade ? "success" : "default"}
+          color={chip.color}
           radius="sm"
           size="sm"
           variant="flat"
         >
-          {actionLabel(tick.decision.action)}
+          {chip.label}
         </Chip>
-        {flash && (
+        {abort && tick.execution?.redeposited && (
           <Chip
             classNames={{ content: "font-medium text-[0.65rem]" }}
             color="success"
+            radius="sm"
+            size="sm"
+            variant="flat"
+          >
+            redeposited
+          </Chip>
+        )}
+        {flash && (
+          <Chip
+            classNames={{ content: "font-medium text-[0.65rem]" }}
+            color={abort || feed ? "warning" : "success"}
             radius="sm"
             size="sm"
             variant="flat"
@@ -53,12 +173,20 @@ const StatusPanel = ({ tick, flash }: { tick: Tick; flash?: boolean }) => {
           {tick.receivedAt}
         </span>
       </div>
-      <p className="mt-3 text-small leading-6 text-default-700">{tick.decision.reason}</p>
+      <p className="mt-3 text-small leading-6 text-default-700">
+        {displayAgentReason(tick.decision.reason)}
+      </p>
+      {tick.execution?.abortReason && (
+        <p className="mt-2 text-tiny leading-5 text-warning-700">
+          Failure: {tick.execution.abortReason}
+        </p>
+      )}
       {(tick.decision.team || typeof tick.decision.spread === "number") && (
         <div className="mt-3 flex flex-wrap items-center gap-2 border-t border-default-100 pt-3">
           {tick.decision.team && (
             <Chip color="primary" radius="sm" size="sm" variant="flat">
               {tick.decision.team}
+              {tick.decision.side ? ` · ${tick.decision.side}` : ""}
             </Chip>
           )}
           {typeof tick.decision.spread === "number" && (
@@ -69,6 +197,26 @@ const StatusPanel = ({ tick, flash }: { tick: Tick; flash?: boolean }) => {
               </span>
             </span>
           )}
+          {typeof tick.decision.fairOdds === "number" && (
+            <span className="text-tiny text-default-500">
+              fair{" "}
+              <span className="font-medium tabular-nums text-default-700">
+                {tick.decision.fairOdds}
+              </span>
+            </span>
+          )}
+        </div>
+      )}
+      <MarketBlock tick={tick} />
+      <YieldBlock tick={tick} />
+      {tick.verification && (
+        <div className="mt-2 text-tiny text-default-500">
+          On-chain:{" "}
+          <span className={tick.verification.ok ? "text-success-600" : "text-default-600"}>
+            {tick.verification.ok ? "verified" : "not verified"}
+          </span>
+          {" — "}
+          {tick.verification.reason}
         </div>
       )}
     </div>
@@ -80,18 +228,26 @@ const DecisionCard = React.forwardRef<
   { tick: Tick; className?: string }
 >(({ tick, className, ...props }, ref) => {
   const executed = tick.status === "Executed";
-  const isTrade = tick.decision.action === "TRADE";
+  const abort = isTradeAbort(tick);
+  const feed = isFeedIssue(tick);
+  const chip = statusChip(tick);
 
   return (
     <div ref={ref} className={cn("flex gap-3", className)} {...props}>
       <div className="relative flex-none">
         <Badge
           isOneChar
-          color={executed ? "success" : "default"}
+          color={abort || feed ? "warning" : executed ? "success" : "default"}
           content={
             <Icon
               className="text-background"
-              icon={executed ? "solar:check-circle-bold" : "solar:pause-circle-bold"}
+              icon={
+                abort || feed
+                  ? "solar:shield-warning-bold"
+                  : executed
+                    ? "solar:check-circle-bold"
+                    : "solar:pause-circle-bold"
+              }
               width={12}
             />
           }
@@ -116,13 +272,16 @@ const DecisionCard = React.forwardRef<
           <span className="text-small font-medium text-default-700">Agent</span>
           <Chip
             classNames={{ content: "font-medium text-[0.65rem]" }}
-            color={isTrade ? "success" : "default"}
+            color={chip.color}
             radius="sm"
             size="sm"
             variant="flat"
           >
-            {actionLabel(tick.decision.action)}
+            {chip.label}
           </Chip>
+          {tick.market?.match && (
+            <span className="truncate text-tiny text-default-400">{tick.market.match}</span>
+          )}
           <span className="ml-auto text-tiny tabular-nums text-default-400">
             {tick.receivedAt}
           </span>
@@ -131,10 +290,24 @@ const DecisionCard = React.forwardRef<
         <div
           className={cn(
             "relative w-full rounded-medium px-4 py-3 text-default-600",
-            executed ? "border border-success-100 bg-success-50/40" : "bg-content2",
+            abort || feed
+              ? "border border-warning-100 bg-warning-50/40"
+              : executed
+                ? "border border-success-100 bg-success-50/40"
+                : "bg-content2",
           )}
         >
-          <p className="text-small leading-6">{tick.decision.reason}</p>
+          <p className="text-small leading-6">{displayAgentReason(tick.decision.reason)}</p>
+          {tick.market?.odds && Object.keys(tick.market.odds).length > 0 && (
+            <div className="mt-2 flex flex-wrap gap-2">
+              {Object.entries(tick.market.odds).map(([k, v]) => (
+                <span key={k} className="text-tiny tabular-nums text-default-500">
+                  {k}{" "}
+                  <span className="font-medium text-default-700">{Number(v).toFixed(2)}</span>
+                </span>
+              ))}
+            </div>
+          )}
         </div>
       </div>
     </div>
@@ -177,7 +350,7 @@ const DecisionFeed = React.forwardRef<HTMLDivElement, FeedProps>(
   ) => {
     const feed = React.useMemo(() => dedupeTicksForFeed(ticks), [ticks]);
     const current = feed[0];
-    const history = feed.slice(1, 1 + MAX_HISTORY).filter((t) => !isIdleHold(t));
+    const history = feed.slice(1, 1 + MAX_HISTORY).filter((t) => !isIdleHold(t) || isFeedIssue(t) || isTradeAbort(t));
     const [, setTick] = React.useState(0);
     React.useEffect(() => {
       const id = window.setInterval(() => setTick((n) => n + 1), 1000);
@@ -227,9 +400,11 @@ const DecisionFeed = React.forwardRef<HTMLDivElement, FeedProps>(
         </div>
 
         <p className="mt-2 max-w-xl text-tiny leading-5 text-default-500">
-          <span className="font-medium text-default-600">Keep earning</span> = HOLD, capital stays
-          in Kamino. <span className="font-medium text-default-600">Take opportunity</span> = TRADE
-          after on-chain match proof.
+          <span className="font-medium text-default-600">Keep earning</span> = HOLD.{" "}
+          <span className="font-medium text-default-600">Take opportunity</span> = TRADE.{" "}
+          <span className="font-medium text-default-600">Safe abort</span> = trade failed mid-way.{" "}
+          <span className="font-medium text-default-600">Feed issue</span> = odds/API glitch, no
+          trade.
           {onOpenProofs && (
             <>
               {" "}
@@ -253,7 +428,7 @@ const DecisionFeed = React.forwardRef<HTMLDivElement, FeedProps>(
                 width={18}
               />
               <div className="min-w-0">
-                <p className="text-small font-medium text-default-700">Can’t reach the agent</p>
+                <p className="text-small font-medium text-default-700">Sign-in needed</p>
                 <p className="mt-1 text-tiny leading-5 text-default-500">{error}</p>
               </div>
             </div>
@@ -281,11 +456,15 @@ const DecisionFeed = React.forwardRef<HTMLDivElement, FeedProps>(
               flash={liveFlashId === current.id}
               tick={
                 liveReason && liveReason.at > current.id
-                  ? {
+                  ? ({
                       ...current,
-                      decision: { ...current.decision, action: liveReason.action, reason: liveReason.reason },
+                      decision: {
+                        ...current.decision,
+                        action: (liveReason.action === "TRADE" ? "TRADE" : "HOLD") as Tick["decision"]["action"],
+                        reason: liveReason.reason,
+                      },
                       receivedAt: new Date(liveReason.at).toLocaleTimeString(),
-                    }
+                    } satisfies Tick)
                   : current
               }
             />

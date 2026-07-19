@@ -129,10 +129,12 @@ async function fetchOddsSnapshot(
 		if (market) return market;
 	}
 
-	// Per-fixture sweep from the real fixtures feed (the reference client's
-	// model): nearest upcoming / in-play fixtures first.
+	// Per-fixture sweep — World Cup first, nearest kickoff first.
 	const fixtures = await listFixtures(origin, headers);
-	for (const f of fixtures.slice(0, 6)) {
+	const ordered = [...fixtures].sort(
+		(a, b) => Math.abs(a.start - Date.now()) - Math.abs(b.start - Date.now()),
+	);
+	for (const f of ordered.slice(0, 8)) {
 		const market = await tryUrl(`${origin}/api/odds/snapshot/${f.fixtureId}`, f.p1, f.p2);
 		if (market) return market;
 	}
@@ -279,26 +281,123 @@ export async function fetchScoreSnapshot(
 	}
 }
 
+/** Normalized 1X2 odds point for replays / charts (decimal odds). */
+export type OddsUpdatePoint = {
+	ts: number;
+	fixtureId: string;
+	inRunning: boolean;
+	/** Decimal odds [home, draw, away] */
+	prices: [number, number, number];
+	home: number;
+	draw: number;
+	away: number;
+};
+
 /**
- * Fetch historical odds updates for a specific fixture.
+ * Fetch historical odds updates for a specific fixture from TxLINE.
+ * GET /api/odds/updates/{fixtureId} — can be huge (10k+ rows).
+ * We keep only full-match 1X2, convert milliodds → decimal, sample for the UI.
  */
 export async function fetchOddsUpdates(
 	config: AgentConfig,
 	fixtureId: string,
-): Promise<unknown[]> {
+	opts?: { maxPoints?: number },
+): Promise<OddsUpdatePoint[]> {
 	if (!config.txlineApiUrl || !config.txlineApiKey) return [];
 
 	const origin = getOrigin(config);
-	const jwt = await getGuestJwt(origin);
-	const url = `${origin}/api/odds/updates/${fixtureId}`;
+	const maxPoints = Math.min(Math.max(opts?.maxPoints ?? 300, 20), 1000);
 
 	try {
+		const jwt = await getGuestJwt(origin);
+		const url = `${origin}/api/odds/updates/${fixtureId}`;
 		const res = await fetch(url, {
 			headers: buildHeaders(jwt, config.txlineApiKey),
 		});
-		if (!res.ok) return [];
+		if (!res.ok) {
+			// Fallback: single live snapshot as a one-point series
+			return snapshotAsUpdates(config, fixtureId);
+		}
 		const body = await res.json();
-		return Array.isArray(body) ? body : [];
+		if (!Array.isArray(body) || body.length === 0) {
+			return snapshotAsUpdates(config, fixtureId);
+		}
+
+		const oneXtwo: OddsUpdatePoint[] = [];
+		for (const raw of body) {
+			if (!raw || typeof raw !== "object") continue;
+			const el = raw as Record<string, unknown>;
+			const type = String(el.SuperOddsType ?? el.superOddsType ?? "");
+			const period = el.MarketPeriod ?? el.marketPeriod;
+			if (type !== "1X2_PARTICIPANT_RESULT" || period) continue;
+
+			const rawPrices = (el.Prices ?? el.prices) as unknown;
+			if (!Array.isArray(rawPrices) || rawPrices.length < 3) continue;
+			const prices = rawPrices.slice(0, 3).map((p) => {
+				const n = Number(p);
+				// TxLINE StablePrice often ships milliodds (2420 → 2.420)
+				if (!Number.isFinite(n) || n <= 0) return NaN;
+				return n > 50 ? n / 1000 : n;
+			});
+			if (prices.some((n) => !Number.isFinite(n) || n <= 1)) continue;
+
+			const ts = Number(el.Ts ?? el.ts ?? 0);
+			oneXtwo.push({
+				ts,
+				fixtureId: String(el.FixtureId ?? el.fixtureId ?? fixtureId),
+				inRunning: Boolean(el.InRunning ?? el.inRunning),
+				prices: [prices[0]!, prices[1]!, prices[2]!],
+				home: prices[0]!,
+				draw: prices[1]!,
+				away: prices[2]!,
+			});
+		}
+
+		if (oneXtwo.length === 0) {
+			return snapshotAsUpdates(config, fixtureId);
+		}
+
+		oneXtwo.sort((a, b) => a.ts - b.ts);
+
+		// Even sample for chart / worker response size
+		if (oneXtwo.length <= maxPoints) return oneXtwo;
+		const step = Math.ceil(oneXtwo.length / maxPoints);
+		const sampled = oneXtwo.filter((_, i) => i % step === 0);
+		// Always keep last point
+		const last = oneXtwo[oneXtwo.length - 1]!;
+		if (sampled[sampled.length - 1]?.ts !== last.ts) sampled.push(last);
+		return sampled;
+	} catch {
+		return snapshotAsUpdates(config, fixtureId);
+	}
+}
+
+/** One-point series from current odds snapshot when history is empty. */
+async function snapshotAsUpdates(
+	config: AgentConfig,
+	fixtureId: string,
+): Promise<OddsUpdatePoint[]> {
+	try {
+		const m = await fetchOddsSnapshot(config, fixtureId);
+		const keys = Object.keys(m.odds);
+		if (keys.length < 2) return [];
+		// Prefer ordered home/draw/away when labels match participants
+		const vals = Object.values(m.odds).filter((n) => n > 1);
+		if (vals.length < 2) return [];
+		const home = vals[0] ?? 0;
+		const draw = vals[1] ?? vals[0] ?? 0;
+		const away = vals[2] ?? vals[1] ?? 0;
+		return [
+			{
+				ts: Date.now(),
+				fixtureId,
+				inRunning: m.status === "IN_PLAY",
+				prices: [home, draw, away],
+				home,
+				draw,
+				away,
+			},
+		];
 	} catch {
 		return [];
 	}
@@ -330,12 +429,9 @@ function normalizeTxline(body: unknown, sourceUrl: string, p1?: string, p2?: str
 			const parsed = normalizeElement(el, p1, p2);
 			if (parsed) return parsed;
 		}
-		throw new Error(
-			`TxLINE snapshot from ${sourceUrl} returned ${
-				body.length === 0
-					? "an empty array (no live odds in the current interval)"
-					: `${body.length} element(s) but none had usable odds`
-			}.`,
+		// Empty / unparseable snapshot interval — honest "no usable odds", not a crash
+		throw new NoLiveOddsError(
+			p1 && p2 ? `${p1} vs ${p2}` : null,
 		);
 	}
 
@@ -381,38 +477,31 @@ function normalizeElement(raw: unknown, p1Hint?: string, p2Hint?: string): Marke
 
 	// Try top-level Odds / odds object
 	const oddsObj = body.Odds ?? body.odds;
-	if (oddsObj && typeof oddsObj === "object") {
+	if (oddsObj && typeof oddsObj === "object" && !Array.isArray(oddsObj)) {
 		for (const [k, v] of Object.entries(oddsObj as Record<string, unknown>)) {
-			const n = Number(v);
-			if (Number.isFinite(n) && n > 1) odds[k] = n;
+			const n = toDecimalOdds(v);
+			if (n != null) odds[k] = n;
 		}
 	}
 
-	// TxLINE StablePrice wire format: PriceNames[] + Prices[] (integers, divide by 1000)
-	// Only use 1X2 full-match market (SuperOddsType=1X2_PARTICIPANT_RESULT, no half period)
+	// TxLINE StablePrice wire: PriceNames[] + Prices[] (milliodds e.g. 2390 → 2.390).
+	// Prefer full-match 1X2; still accept half-period 1X2 if that's all we got.
 	if (Object.keys(odds).length === 0) {
 		const superOddsType = String(body.SuperOddsType ?? body.superOddsType ?? "");
-		const marketPeriod = body.MarketPeriod ?? body.marketPeriod;
-		const is1x2FullMatch = superOddsType === "1X2_PARTICIPANT_RESULT" && !marketPeriod;
-		const is1x2 = superOddsType.includes("1X2") || superOddsType === "";
-		if (is1x2FullMatch || (is1x2 && Object.keys(odds).length === 0)) {
-			const priceNames = body.PriceNames ?? body.priceNames;
-			const prices = body.Prices ?? body.prices;
-			if (Array.isArray(priceNames) && Array.isArray(prices)) {
-				// Use real team names if available, otherwise generic labels
-				const labelMap: Record<string, string> = {
-					part1: p1Hint ?? "Home",
-					draw: "Draw",
-					part2: p2Hint ?? "Away",
-				};
-				for (let i = 0; i < priceNames.length; i++) {
-					const rawName = String(priceNames[i] ?? "");
-					const name = labelMap[rawName] ?? rawName;
-					const n = Number(prices[i]) / 1000;
-					if (name && Number.isFinite(n) && n > 1) odds[name] = n;
-				}
-			}
+		const is1x2 =
+			superOddsType === "1X2_PARTICIPANT_RESULT" ||
+			superOddsType.includes("1X2") ||
+			superOddsType === "";
+		if (is1x2) {
+			const fromPrices = pricesArrayToOdds(body, p1Hint, p2Hint);
+			if (fromPrices) odds = fromPrices;
 		}
+	}
+
+	// Last resort: any element with 3 Prices (demo resilience)
+	if (Object.keys(odds).length === 0) {
+		const fromPrices = pricesArrayToOdds(body, p1Hint, p2Hint);
+		if (fromPrices) odds = fromPrices;
 	}
 
 	// Try markets[].selections[] — confirmed via TG for stream/snapshot endpoints
@@ -456,6 +545,43 @@ function normalizeElement(raw: unknown, p1Hint?: string, p2Hint?: string): Marke
 		...(messageId && { messageId }),
 		...(ts > 0 && { ts }),
 	};
+}
+
+/** TxLINE Prices[] may be milliodds (2390) or decimal (2.39). */
+function toDecimalOdds(raw: unknown): number | null {
+	const n = Number(raw);
+	if (!Number.isFinite(n) || n <= 0) return null;
+	const dec = n > 50 ? n / 1000 : n;
+	return dec > 1 ? dec : null;
+}
+
+function pricesArrayToOdds(
+	body: Record<string, unknown>,
+	p1Hint?: string,
+	p2Hint?: string,
+): Record<string, number> | null {
+	const priceNames = body.PriceNames ?? body.priceNames;
+	const prices = body.Prices ?? body.prices;
+	if (!Array.isArray(prices) || prices.length < 2) return null;
+
+	const labelMap: Record<string, string> = {
+		part1: p1Hint ?? "Home",
+		draw: "Draw",
+		part2: p2Hint ?? "Away",
+	};
+	const names = Array.isArray(priceNames)
+		? priceNames.map((n) => String(n ?? ""))
+		: prices.length >= 3
+			? ["part1", "draw", "part2"]
+			: ["part1", "part2"];
+
+	const odds: Record<string, number> = {};
+	for (let i = 0; i < Math.min(names.length, prices.length); i++) {
+		const name = labelMap[names[i]!] ?? names[i]!;
+		const n = toDecimalOdds(prices[i]);
+		if (name && n != null) odds[name] = n;
+	}
+	return Object.keys(odds).length >= 2 ? odds : null;
 }
 
 function mapStatus(

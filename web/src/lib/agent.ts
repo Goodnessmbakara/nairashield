@@ -25,6 +25,9 @@ export type TickMarket = {
   minute?: number;
   odds?: Record<string, number>;
   source?: string;
+  p1?: string;
+  p2?: string;
+  start?: number;
 };
 
 export type TickYield = {
@@ -37,6 +40,10 @@ export type TickExecution = {
   aborted?: boolean;
   abortReason?: string;
   order?: { orderId?: string; status?: string };
+  withdrewUsdc?: number;
+  withdrawTxid?: string;
+  redeposited?: boolean;
+  redepositTxid?: string;
 };
 
 /** Sharp odds shift between two consecutive real snapshots of the same fixture. */
@@ -74,7 +81,7 @@ export type AgentResponse =
       tick?: {
         id: string;
         at?: string;
-        status?: string;
+        status?: "Executed" | "Skipped" | "Aborted" | "Error" | "Settled" | string;
         market?: TickMarket;
         yield?: TickYield;
         execution?: TickExecution;
@@ -89,7 +96,10 @@ export type AgentResponse =
 export type Tick = {
   id: string;
   receivedAt: string;
+  /** UI-level: Executed = real fill; Skipped = HOLD / abort / settle / error */
   status: "Executed" | "Skipped";
+  /** Full agent status when present (Aborted / Error / Settled from worker) */
+  agentStatus?: "Executed" | "Skipped" | "Aborted" | "Error" | "Settled";
   decision: Decision;
   market?: TickMarket;
   yield?: TickYield;
@@ -97,6 +107,22 @@ export type Tick = {
   movement?: TickMovement[];
   verification?: MatchVerification;
 };
+
+/** Honest client-side failure tick for the app when the agent cannot be reached.
+ * Not a trade, not fabricated odds — pure HOLD describing the failure path. */
+export function failureSimulationTick(reason: string): Tick {
+  const clean = reason.replace(/\s+/g, " ").trim() || "unknown error";
+  return {
+    id: `fail_${Date.now()}`,
+    receivedAt: new Date().toLocaleTimeString(),
+    status: "Skipped",
+    agentStatus: "Error",
+    decision: {
+      action: "HOLD",
+      reason: `Agent check failed — ${clean}. No trade placed; capital stays in yield.`,
+    },
+  };
+}
 
 export { AGENT_URL };
 export const isConfigured = () => isAgentConfigured();
@@ -159,35 +185,109 @@ export async function fetchTick(signal?: AbortSignal): Promise<Tick> {
   const ok = body as Extract<AgentResponse, { decision: Decision }>;
   const tickId = ok.tick?.id ?? `${Date.now()}`;
 
-  return {
+  // Worker may return decision + error together (status Error with HOLD) — still a real tick.
+  return normalizeTick({
     id: tickId,
-    receivedAt: new Date().toLocaleTimeString(),
-    status: ok.status,
+    at: ok.tick?.at ?? ok.at,
+    status: ok.tick?.status ?? ok.status,
     decision: ok.decision,
     market: ok.tick?.market,
     yield: ok.tick?.yield,
     execution: ok.tick?.execution,
     movement: ok.tick?.movement,
     verification: ok.tick?.verification,
-  };
+  });
 }
 
-/** Fetch agent status (mode, integrations, position, currentStatus). Auth required. */
-export async function fetchAgentStatus(signal?: AbortSignal) {
-  if (!isConfigured() || !getToken()) return null;
-  const res = await fetch(`${AGENT_URL}/agent/status`, {
-    signal,
-    headers: authHeaders(),
-    credentials: "include",
-  });
-  if (!res.ok) return null;
-  return res.json() as Promise<{
-    mode: "live" | "demo";
-    integrations: Record<string, boolean>;
-    position?: TickYield;
-    config: { tradeSizeUsdc: number; yieldApy: number; minEdge: number };
-    currentStatus?: { action: string; reason: string; at: string };
+export type AgentStatusPayload = {
+  ok?: boolean;
+  mode: "live" | "demo" | "not_ready";
+  integrations: Record<string, boolean>;
+  position?: TickYield;
+  walletUsdc?: number | null;
+  liveApy?: number | null;
+  capital?: "funded" | "unfunded" | "unknown";
+  openPositions?: Array<{
+    id: string;
+    matchId?: string;
+    match?: string;
+    team?: string;
+    side?: string;
+    sizeUsdc?: number;
+    makerOdds?: number;
+    status?: string;
   }>;
+  lastTick?: {
+    id?: string;
+    at?: string;
+    status?: string;
+    decision?: Decision;
+    market?: TickMarket;
+    yield?: TickYield;
+    execution?: TickExecution;
+    movement?: TickMovement[];
+    verification?: MatchVerification;
+    projection?: { decision: Decision; hypotheticalCapitalUsdc: number };
+  };
+  config: {
+    tradeSizeUsdc: number;
+    yieldApy: number;
+    minEdge: number;
+    makerMargin?: number;
+    eventHorizonHours?: number;
+    maxOpenPositions?: number;
+  };
+  currentStatus?: { action: string; reason: string; at: string };
+};
+
+/** Fetch agent status (mode, integrations, position, currentStatus). Auth required. */
+export async function fetchAgentStatus(signal?: AbortSignal): Promise<AgentStatusPayload | null> {
+  if (!isConfigured() || !getToken()) return null;
+  try {
+    const res = await fetch(`${AGENT_URL}/agent/status`, {
+      signal,
+      headers: authHeaders(),
+      credentials: "include",
+    });
+    if (!res.ok) return null;
+    return res.json() as Promise<AgentStatusPayload>;
+  } catch {
+    return null;
+  }
+}
+
+/** Normalize a raw worker tick payload into the dashboard Tick shape. */
+export function normalizeTick(t: {
+  id: string;
+  at?: string;
+  status?: string;
+  decision: Decision;
+  market?: TickMarket;
+  yield?: TickYield;
+  execution?: TickExecution;
+  movement?: TickMovement[];
+  verification?: MatchVerification;
+}): Tick {
+  const agentStatus =
+    t.status === "Executed" ||
+    t.status === "Skipped" ||
+    t.status === "Aborted" ||
+    t.status === "Error" ||
+    t.status === "Settled"
+      ? t.status
+      : undefined;
+  return {
+    id: t.id,
+    receivedAt: t.at ? new Date(t.at).toLocaleTimeString() : "",
+    status: t.status === "Executed" ? "Executed" : "Skipped",
+    agentStatus,
+    decision: t.decision,
+    market: t.market,
+    yield: t.yield,
+    execution: t.execution,
+    movement: t.movement,
+    verification: t.verification,
+  };
 }
 
 export type WatchedFixture = {
@@ -275,83 +375,122 @@ export async function fetchAgentHistory(limit = 40, signal?: AbortSignal) {
       verification?: MatchVerification;
     }>;
   };
-  return (body.ticks ?? []).map((t) => ({
-    id: t.id,
-    receivedAt: t.at ? new Date(t.at).toLocaleTimeString() : "",
-    status: (t.status === "Executed" ? "Executed" : "Skipped") as "Executed" | "Skipped",
-    decision: t.decision,
-    market: t.market,
-    yield: t.yield,
-    execution: t.execution,
-    movement: t.movement,
-		verification: t.verification,
-	})) satisfies Tick[];
+  return (body.ticks ?? []).map((t) =>
+    normalizeTick({
+      id: t.id,
+      at: t.at,
+      status: t.status,
+      decision: t.decision,
+      market: t.market,
+      yield: t.yield,
+      execution: t.execution,
+      movement: t.movement,
+      verification: t.verification,
+    }),
+  );
 }
 
+export type ReplayFixture = {
+  fixtureId: string;
+  p1: string;
+  p2: string;
+  start: number | string;
+  live?: boolean;
+  bettable?: boolean;
+  flag1?: string;
+  flag2?: string;
+  competition?: string;
+  competitionId?: number;
+  source?: "ticks" | "txline" | "both";
+};
+
 export type ReplayData = {
-	fixtures: WatchedFixture[];
-	history: Record<string, Tick[]>;
-	scores: Record<string, { home: number; away: number; minute?: number }>;
+  fixtures: ReplayFixture[];
+  history: Record<string, Tick[]>;
+  scores: Record<string, { home: number; away: number; minute?: number }>;
+  meta?: { tickFixtures: number; txlinePast: number; matched: number };
 };
 
 /** Fetch past fixtures, agent history overlay, and final scores for replays. Auth required. */
 export async function fetchReplays(limit = 1000, signal?: AbortSignal): Promise<ReplayData | null> {
-	if (!isConfigured() || !getToken()) return null;
-	try {
-		const res = await fetch(`${AGENT_URL}/agent/replays?limit=${limit}`, {
-			signal,
-			headers: authHeaders(),
-			credentials: "include",
-		});
-		if (!res.ok) return null;
-		
-		const body = await res.json() as {
-			fixtures?: WatchedFixture[];
-			history?: Record<string, any[]>;
-			scores?: Record<string, any>;
-		};
+  if (!isConfigured() || !getToken()) return null;
+  try {
+    const res = await fetch(`${AGENT_URL}/agent/replays?limit=${limit}`, {
+      signal,
+      headers: authHeaders(),
+      credentials: "include",
+    });
+    if (!res.ok) return null;
 
-		// Normalize history ticks just like fetchAgentHistory does
-		const normalizedHistory: Record<string, Tick[]> = {};
-		if (body.history) {
-			for (const [matchId, ticks] of Object.entries(body.history)) {
-				normalizedHistory[matchId] = ticks.map(t => ({
-					id: t.id,
-					receivedAt: t.at ? new Date(t.at).toLocaleTimeString() : "",
-					status: (t.status === "Executed" ? "Executed" : "Skipped") as "Executed" | "Skipped",
-					decision: t.decision,
-					market: t.market,
-					yield: t.yield,
-					execution: t.execution,
-					movement: t.movement,
-					verification: t.verification,
-				}));
-			}
-		}
+    const body = (await res.json()) as {
+      fixtures?: ReplayFixture[];
+      history?: Record<string, Array<Record<string, unknown>>>;
+      scores?: Record<string, { home: number; away: number; minute?: number }>;
+      meta?: ReplayData["meta"];
+    };
 
-		return {
-			fixtures: body.fixtures ?? [],
-			history: normalizedHistory,
-			scores: body.scores ?? {},
-		};
-	} catch {
-		return null;
-	}
+    const normalizedHistory: Record<string, Tick[]> = {};
+    if (body.history) {
+      for (const [matchId, ticks] of Object.entries(body.history)) {
+        normalizedHistory[matchId] = ticks.map((t) =>
+          normalizeTick({
+            id: String(t.id),
+            at: t.at as string | undefined,
+            status: t.status as string | undefined,
+            decision: t.decision as Decision,
+            market: t.market as TickMarket | undefined,
+            yield: t.yield as TickYield | undefined,
+            execution: t.execution as TickExecution | undefined,
+            movement: t.movement as TickMovement[] | undefined,
+            verification: t.verification as MatchVerification | undefined,
+          }),
+        );
+      }
+    }
+
+    return {
+      fixtures: body.fixtures ?? [],
+      history: normalizedHistory,
+      scores: body.scores ?? {},
+      meta: body.meta,
+    };
+  } catch {
+    return null;
+  }
 }
 
-/** Fetch historical odds timeline for a specific replay fixture. Auth required. */
-export async function fetchReplayOdds(fixtureId: string, signal?: AbortSignal): Promise<any[]> {
-	if (!isConfigured() || !getToken()) return [];
-	try {
-		const res = await fetch(`${AGENT_URL}/agent/replays/odds?fixtureId=${encodeURIComponent(fixtureId)}`, {
-			signal,
-			headers: authHeaders(),
-			credentials: "include",
-		});
-		if (!res.ok) return [];
-		const body = await res.json() as { odds?: any[] };
-		return body.odds ?? [];
-	} catch {
-		return [];
-	}
+export type ReplayOddsPoint = {
+  ts: number;
+  fixtureId?: string;
+  inRunning?: boolean;
+  prices?: [number, number, number] | number[];
+  home?: number;
+  draw?: number;
+  away?: number;
+  /** Raw TxLINE milliodds array (legacy) */
+  Prices?: number[];
+  pricesRaw?: number[];
+};
+
+/** Fetch TxLINE odds timeline for a replay fixture. Auth required. */
+export async function fetchReplayOdds(
+  fixtureId: string,
+  signal?: AbortSignal,
+): Promise<ReplayOddsPoint[]> {
+  if (!isConfigured() || !getToken()) return [];
+  try {
+    const res = await fetch(
+      `${AGENT_URL}/agent/replays/odds?fixtureId=${encodeURIComponent(fixtureId)}`,
+      {
+        signal,
+        headers: authHeaders(),
+        credentials: "include",
+      },
+    );
+    if (!res.ok) return [];
+    const body = (await res.json()) as { odds?: ReplayOddsPoint[] };
+    return body.odds ?? [];
+  } catch {
+    return [];
+  }
 }

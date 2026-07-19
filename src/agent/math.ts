@@ -1,5 +1,5 @@
 /**
- * NairaShield pricing & net-return model (PRD §2.2 + research pivot).
+ * Retegol pricing & net-return model (PRD §2.2 + research pivot).
  *
  * We do NOT arbitrage TxLINE against itself.
  * TxLINE = fair value. We quote maker prices on Jupiter Predict with a margin,

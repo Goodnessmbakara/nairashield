@@ -1,33 +1,43 @@
 # Retegol
 
-Autonomous AI sports market-making agent on Solana. USDC earns Kamino yield by default; the agent places Jupiter Predict maker orders only when TxLINE odds clear the yield bar.
+Autonomous sports market-making agent on Solana for the **TxODDS Superteam Earn** hackathon (Trading Tools and Agents).
+
+Idle USDC earns **Kamino** yield. Every minute a **Cloudflare Worker** reads live **TxLINE** World Cup odds, decides with Y_net (edge vs yield opportunity cost), and only then withdraws and places a **Jupiter Predict** maker order. No human in the loop after deploy. No fabricated odds, balances, or fills.
 
 | | |
 |---|---|
-| **App** | https://retegol.pages.dev |
+| **App** | https://retegol.vercel.app |
 | **Agent API** | https://retegol-bot.zanbuilds.workers.dev |
 | **Health** | https://retegol-bot.zanbuilds.workers.dev/health |
+| **Repo** | https://github.com/Goodnessmbakara/nairashield |
 
-Built for the **TxODDS Superteam Earn Hackathon** (Trading Tools and Agents).
+## Core loop
 
-> Repo path may still say `nairashield`. Product / Worker / Pages are **Retegol** (`retegol-bot`, `retegol`).
+1. **Cron** (`* * * * *`) or dashboard **Run check**
+2. **TxLINE** — fixtures + per-fixture odds (guest JWT + activated API token)
+3. **Sharp movement** — flag >3% odds shifts between real snapshots
+4. **Decide** — Workers AI (Llama 3) + deterministic Y_net guardrails (`src/agent/math.ts`)
+5. **Execute** — Kamino withdraw → Jupiter Predict (safe abort if either fails)
+6. **Dashboard** — live fixtures, odds, agent activity (Astro + React on Vercel)
 
-## How it works
-
-1. **Deposit** — USDC to a personal address (FossaPay or local custodial) → Neon fund ledger  
-2. **Yield** — Idle capital in Kamino  
-3. **Decide** — Workers AI (Llama 3) on TxLINE odds vs yield opportunity cost  
-4. **Execute** — Withdraw Kamino → Jupiter Predict maker order  
-5. **Settle** — Resolve books → redeposit to Kamino  
-6. **Withdraw** — User request → admin on-chain payout  
-
-## Tech stack
-
-Cloudflare Workers + Workers AI · Neon · Kamino · Jupiter Predict · TxLINE · Solana · Astro/React (Pages) · GitHub Actions
+Policy knobs live in code: `src/agent/config.ts` → `AGENT_POLICY` (not env).
 
 ## TxLINE
 
-Retegol polls TxLINE fixtures, per-fixture odds, and scores each tick (guest JWT + activated API token). Full endpoint list, auth model, and hackathon feedback: **[docs/TXLINE.md](docs/TXLINE.md)**.
+| Method | Path | Use |
+|--------|------|-----|
+| `POST` | `/auth/guest/start` | Guest JWT |
+| `GET` | `/api/fixtures/snapshot` | Watching / discovery (World Cup) |
+| `GET` | `/api/odds/snapshot/{fixtureId}` | Live consensus odds |
+| `GET` | `/api/odds/updates/{fixtureId}` | Odds history (replays) |
+| `GET` | `/api/scores/snapshot/{fixtureId}` | Settlement scores |
+| `GET` | `/api/fixtures/validation?fixtureId=` | On-chain verify proof |
+
+Details + feedback: **[docs/TXLINE.md](docs/TXLINE.md)**.
+
+## Stack
+
+Cloudflare Workers + Workers AI · Neon · Kamino · Jupiter Predict · TxLINE · Solana · Astro/React (Vercel)
 
 ## Local setup
 
@@ -40,24 +50,24 @@ pnpm dev                         # API → :8787
 cd web && pnpm dev               # UI  → :4321
 ```
 
-Apply SQL in `migrations/` to Neon manually. Ops detail: [HANDOFF.md](HANDOFF.md). Submission paste: [SUBMISSION.md](SUBMISSION.md).
-
-## Agent SDK / MCP
-
-Give Retegol to another agent via npm (read-only: status, fixtures, verify, history):
-
-```bash
-npm install @retegol/agent
-# or MCP: npx -y @retegol/agent  with RETEGOL_URL + RETEGOL_AGENT_KEY
-```
-
-See [`packages/retegol-agent/README.md`](packages/retegol-agent/README.md). Worker routes: `GET /v1/*` (secret `RETEGOL_AGENT_KEY`).
+Apply SQL in `migrations/` to Neon manually.
 
 ## Deploy
 
-Push to `main` → Actions deploys Worker `retegol-bot` then Pages `retegol`.  
-Secrets: `CLOUDFLARE_API_TOKEN`, `CLOUDFLARE_ACCOUNT_ID` + `wrangler secret put …` (see `.dev.vars.example`).  
-OAuth callback: `https://retegol-bot.zanbuilds.workers.dev/auth/google/callback`
+- **Worker:** `npx wrangler deploy` (name `retegol-bot`)
+- **Frontend:** `web/` → Vercel (`PUBLIC_AGENT_URL=https://retegol-bot.zanbuilds.workers.dev`)
+- **Secrets:** `wrangler secret put …` (see `.dev.vars.example`)
+- **OAuth callback:** `https://retegol-bot.zanbuilds.workers.dev/auth/google/callback`
+- **CORS / return_to:** `FRONTEND_URL` in `wrangler.toml` (includes `https://retegol.vercel.app`)
+
+## Docs
+
+| Doc | What |
+|-----|------|
+| [SUBMISSION.md](SUBMISSION.md) | Earn paste-ready fields |
+| [DEMO_SCRIPT.md](DEMO_SCRIPT.md) | ≤5 min demo path |
+| [docs/TXLINE.md](docs/TXLINE.md) | TxLINE integration |
+| [HANDOFF.md](HANDOFF.md) | Ops / secrets |
 
 ## Disclaimer
 

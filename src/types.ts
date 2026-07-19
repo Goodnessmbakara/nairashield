@@ -263,7 +263,17 @@ export type AgentStatus = {
 		kamino: boolean;
 		wallet: boolean;
 	};
+	/** Live Kamino obligation only — omitted when unfunded (never invented). */
 	position?: YieldPosition;
+	/**
+	 * free USDC in the agent wallet (SPL), not in Kamino.
+	 * null = could not read; 0 = read and empty.
+	 */
+	walletUsdc?: number | null;
+	/** Live Kamino USDC supply APY when readable (even if unfunded). */
+	liveApy?: number | null;
+	/** Honest capital state for the dashboard. */
+	capital: "funded" | "unfunded" | "unknown";
 	openPositions: OpenPosition[];
 	lastTick?: AgentTickResult | null;
 	/** Most recent tick status — written to KV on every tick, including idle HOLDs not stored in DB. */

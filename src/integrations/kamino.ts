@@ -202,6 +202,35 @@ export async function fetchKaminoApy(config: AgentConfig): Promise<number | null
 	}
 }
 
+/**
+ * Free USDC sitting in the agent wallet (not deposited to Kamino).
+ * Returns null if wallet/RPC/mint missing or read fails — never invents a balance.
+ * Returns 0 when the ATA is missing or empty.
+ */
+export async function getWalletUsdcBalance(
+	env: Env,
+	config: AgentConfig,
+): Promise<number | null> {
+	if (!hasWallet(env) || !config.usdcMintPubKey || !config.rpcUrl) return null;
+	try {
+		const connection = new Connection(config.rpcUrl, "confirmed");
+		const keypair = loadKeypair(env);
+		const mint = new PublicKey(config.usdcMintPubKey);
+		const accounts = await connection.getParsedTokenAccountsByOwner(keypair.publicKey, {
+			mint,
+		});
+		let total = 0;
+		for (const { account } of accounts.value) {
+			const info = account.data.parsed?.info;
+			const amount = info?.tokenAmount?.uiAmount;
+			if (typeof amount === "number" && Number.isFinite(amount)) total += amount;
+		}
+		return total;
+	} catch {
+		return null;
+	}
+}
+
 export async function withdrawYield(
 	env: Env,
 	config: AgentConfig,

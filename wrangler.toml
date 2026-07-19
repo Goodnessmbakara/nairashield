@@ -23,7 +23,8 @@ crons = ["* * * * *"]
 
 [vars]
 WORKER_URL = "https://retegol-bot.zanbuilds.workers.dev"
-FRONTEND_URL = "https://retegol.pages.dev"
+# Comma-separated allowed browser origins (CORS + Google return_to)
+FRONTEND_URL = "https://retegol.vercel.app,https://retegol.pages.dev,http://127.0.0.1:4321"
 # Agent policy (yield, size, margins, horizons) is in src/agent/config.ts
 
 # Secrets (set via `wrangler secret put`):

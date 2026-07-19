@@ -35,7 +35,7 @@
 - [ ] **Step 1: Write the migration file**
 
 ```sql
--- NairaShield fund accounts schema
+-- Retegol fund accounts schema
 
 CREATE TABLE IF NOT EXISTS user_wallets (
   user_sub          TEXT PRIMARY KEY,
@@ -1305,12 +1305,12 @@ Expected: `✨ Successfully published your Worker`.
 
 ```bash
 # First get a session token by logging in
-TOKEN=$(curl -s -X POST https://nairashield-bot.zanbuilds.workers.dev/auth/login \
+TOKEN=$(curl -s -X POST https://retegol-bot.zanbuilds.workers.dev/auth/login \
   -H "Content-Type: application/json" \
   -d '{"email":"your@email.com","password":"yourpassword"}' | jq -r '.token')
 
 # Create deposit wallet
-curl -s -X POST https://nairashield-bot.zanbuilds.workers.dev/account/wallet \
+curl -s -X POST https://retegol-bot.zanbuilds.workers.dev/account/wallet \
   -H "Authorization: Bearer $TOKEN" | jq .
 ```
 
@@ -1319,7 +1319,7 @@ Expected: `{ "depositAddress": "...", "withdrawalAddress": null }`
 - [ ] **Step 4: Smoke test — check balance**
 
 ```bash
-curl -s https://nairashield-bot.zanbuilds.workers.dev/account/balance \
+curl -s https://retegol-bot.zanbuilds.workers.dev/account/balance \
   -H "Authorization: Bearer $TOKEN" | jq .
 ```
 
@@ -1328,7 +1328,7 @@ Expected: `{ "netUsdc": "0", "lockedUsdc": "0", "sharePct": 0, "estimatedValueUs
 - [ ] **Step 5: Smoke test — admin fund balance**
 
 ```bash
-curl -s https://nairashield-bot.zanbuilds.workers.dev/admin/fund/balance \
+curl -s https://retegol-bot.zanbuilds.workers.dev/admin/fund/balance \
   -H "Authorization: Bearer $TOKEN" | jq .
 ```
 

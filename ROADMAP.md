@@ -1,9 +1,9 @@
-# NairaShield Roadmap — Per-User Agents Without Custody
+# Retegol Roadmap — Per-User Agents Without Custody
 
-Today NairaShield runs as a single-operator agent: one wallet, funded by the
+Today Retegol runs as a single-operator agent: one wallet, funded by the
 operator, and the dashboard is a read-only window into that agent. This
 document is the researched plan for the next stage: **every user gets their
-own agent — without NairaShield ever holding anyone's private key.**
+own agent — without Retegol ever holding anyone's private key.**
 
 ## The problem
 
@@ -32,9 +32,9 @@ the app can extract it.
 
 The flow:
 
-1. **Sign in with Google** (existing NairaShield auth) → the same OAuth
+1. **Sign in with Google** (existing Retegol auth) → the same OAuth
    identity mints the user a self-custodied Solana wallet. No seed phrase.
-2. **One-time consent** adds the NairaShield agent as a **session signer** —
+2. **One-time consent** adds the Retegol agent as a **session signer** —
    a named, revocable grant. The user can remove it at any time.
 3. **The agent trades as the user**: the Cloudflare Worker calls Privy's REST
    API; the enclave signs with the user's key. Kamino obligations and Jupiter
@@ -83,4 +83,4 @@ The 2023–24 wave of custodial Telegram bots (Unibot, Maestro, Banana Gun)
 lost ~$4M+ to server-side key compromises. The products that endured
 (e.g. Axiom, via Turnkey) moved signing into enclaves under policy. V2
 adopts that proven pattern with the provider whose onboarding (Google
-login) matches NairaShield's existing auth one-to-one.
+login) matches Retegol's existing auth one-to-one.

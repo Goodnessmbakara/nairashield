@@ -1,5 +1,4 @@
 // Landing narrative: Problem → Agitation → Solution → How.
-// Plain product language. No "not X, it's Y" contrast slop.
 
 export const nav = [
   { label: "How it works", href: "#how" },

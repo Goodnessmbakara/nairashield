@@ -1,4 +1,4 @@
--- NairaShield Neon PostgreSQL schema
+-- Retegol Neon PostgreSQL schema
 -- Run once against your Neon database to set up all tables.
 
 CREATE TABLE IF NOT EXISTS users (

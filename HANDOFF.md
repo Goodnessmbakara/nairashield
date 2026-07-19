@@ -1,4 +1,4 @@
-# NairaShield — Project Handoff
+# Retegol — Project Handoff
 
 ---
 
@@ -515,4 +515,4 @@ Edit `src/agent/config.ts` → `AGENT_POLICY` (**not** env vars):
 - Participants are responsible for complying with gambling/financial laws in their jurisdiction
 - TxLINE and Superteam Earn do not endorse illegal betting
 - This is an experimental hackathon submission for educational purposes
-- By running NairaShield, you accept the [TxODDS Hackathon T&C](https://txline.txodds.com/documentation/legal/hackathon-terms)
+- By running Retegol, you accept the [TxODDS Hackathon T&C](https://txline.txodds.com/documentation/legal/hackathon-terms)

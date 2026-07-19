@@ -22,13 +22,16 @@ export async function appendTick(env: Env, tick: AgentTickResult): Promise<void>
 	const last = await getLastTick(env);
 
 	// Do not persist a wall of identical idle HOLDs — one current status is enough.
+	// Always keep ticks that carry market/odds or movement (demo + movement history).
 	const uneventful =
 		last &&
 		tick.decision.action === "HOLD" &&
 		last.decision.action === "HOLD" &&
 		!tick.execution &&
 		!tick.movement?.length &&
+		!tick.market?.odds &&
 		tick.status !== "Error" &&
+		tick.status !== "Executed" &&
 		(tick.decision.reason === last.decision.reason ||
 			(isIdleHoldReason(tick.decision.reason) && isIdleHoldReason(last.decision.reason)));
 	if (uneventful) return;
@@ -66,20 +69,31 @@ export async function getLastTick(env: Env): Promise<AgentTickResult | null> {
 
 export async function getPastFixtures(env: Env, limit = 50): Promise<string[]> {
 	const sql = getDb(env);
+	// Neon/Postgres JSONB — not SQLite json_extract
 	const rows = await sql`
-		SELECT DISTINCT json_extract(payload, '$.market.matchId') as fixtureId
-		FROM ticks 
-		WHERE json_extract(payload, '$.market.matchId') IS NOT NULL
-		ORDER BY at DESC LIMIT ${limit}
+		SELECT fixture_id
+		FROM (
+			SELECT
+				payload->'market'->>'matchId' AS fixture_id,
+				MAX(at) AS last_at
+			FROM ticks
+			WHERE payload->'market'->>'matchId' IS NOT NULL
+				AND payload->'market'->>'matchId' <> ''
+			GROUP BY payload->'market'->>'matchId'
+			ORDER BY last_at DESC
+			LIMIT ${limit}
+		) t
 	`;
-	return rows.map((r) => String(r.fixtureId)).filter(id => id !== 'null' && id !== '');
+	return rows
+		.map((r) => String((r as { fixture_id: string }).fixture_id))
+		.filter((id) => id && id !== "null");
 }
 
 export async function getFixtureTicks(env: Env, fixtureId: string): Promise<AgentTickResult[]> {
 	const sql = getDb(env);
 	const rows = await sql`
-		SELECT payload FROM ticks 
-		WHERE json_extract(payload, '$.market.matchId') = ${fixtureId}
+		SELECT payload FROM ticks
+		WHERE payload->'market'->>'matchId' = ${fixtureId}
 		ORDER BY at ASC
 	`;
 	return rows.map((r) => r.payload as AgentTickResult);

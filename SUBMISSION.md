@@ -1,29 +1,47 @@
 # Retegol — Superteam Earn Submission (paste-ready)
 
-**Track:** Trading Tools and Agents (primary) · Prediction Markets and Settlement (secondary)
+**Track:** Trading Tools and Agents (primary)
 
 ## Links
-- **Live app:** https://retegol.pages.dev
-- **Agent API:** https://retegol-bot.zanbuilds.workers.dev (`/health`)
+- **Live app:** https://retegol.vercel.app
+- **Agent API:** https://retegol-bot.zanbuilds.workers.dev (`GET /health`)
 - **Public repo:** https://github.com/Goodnessmbakara/nairashield
 - **Demo video:** _add Loom/YouTube link after recording_
 
 ## One-liner
-An autonomous agent that never lets betting capital sit idle: USDC earns
-Kamino yield by default and is deployed into live-odds opportunities on
-Jupiter Predict only when an LLM-evaluated net-return model (Y_net) beats
-the yield being given up — fully autonomous on Cloudflare Workers cron.
+Autonomous market-making agent on Solana: USDC earns Kamino yield by default; a Cloudflare Worker cron reads live TxLINE World Cup odds every minute and only deploys capital to Jupiter Predict when Y_net (spread capture minus yield opportunity cost) clears a hard edge floor.
 
-## Core idea (technical)
-Every minute: fetch live TxLINE consensus odds → flag sharp movement
-(>3% between consecutive snapshots) → mark open positions to market
-(take-profit +8 prob pts / stop-loss −6, real position closes) → settle
-finished books and sweep proceeds back to yield → Llama-3 (Workers AI)
-decides TRADE/HOLD via Y_net = C·margin − C·yieldApy·(T/year), guardrailed
-by deterministic math → execution signed by the agent's own keypair.
-Absolute no-mocks rule: any missing credential or empty feed produces an
-honest HOLD with the reason on the dashboard — nothing is ever fabricated.
+## Core idea (what judges should see working)
+1. **TxLINE in** — fixtures + per-fixture odds snapshots (guest JWT + activated `X-Api-Token`)
+2. **Sharp movement** — >3% odds shift between consecutive real snapshots
+3. **Decision** — Workers AI Llama 3 + deterministic Y_net guardrails (`src/agent/math.ts`)
+4. **Execution path** — Kamino withdraw → Jupiter Predict maker (safe abort if either step fails)
+5. **Autonomy** — `* * * * *` cron + optional `GET /agent/run?key=`
+6. **Honesty** — no fabricated odds, balances, or fills; empty feed → HOLD with reason
 
-## TxLINE
+## TxLINE endpoints used
+| Method | Path | Use |
+|--------|------|-----|
+| `POST` | `/auth/guest/start` | Guest JWT |
+| `POST` | `/api/token/activate` | One-time activation (script in repo) |
+| `GET` | `/api/fixtures/snapshot` | Watching / discovery (World Cup CompId 72) |
+| `GET` | `/api/odds/snapshot/{fixtureId}` | Live consensus odds per match |
+| `GET` | `/api/odds/updates/{fixtureId}` | Historical odds for replays |
+| `GET` | `/api/scores/snapshot/{fixtureId}` | Settlement scores |
+| `GET` | `/api/fixtures/validation?fixtureId=` | Merkle proof for on-chain verify |
 
-Endpoints, auth, and feedback: **[docs/TXLINE.md](docs/TXLINE.md)** (fixtures / per-fixture odds / scores; guest JWT + `X-Api-Token`).
+Docs: [docs/TXLINE.md](docs/TXLINE.md)
+
+## Feedback (TxLINE)
+**Liked:** Normalized JSON; free World Cup tier; on-chain activation story; fast snapshots.  
+**Friction:** Devnet global odds 404 (per-fixture only); PascalCase wire vs camelCase docs; empty intervals return `[]` which looks like breakage until handled as honest HOLD.
+
+## Demo path (5 min)
+1. Open https://retegol.vercel.app → sign in  
+2. Dashboard: Watching panel = live TxLINE fixtures  
+3. **Run check** → Agent activity shows HOLD/TRADE + odds + movement  
+4. Optional: Replays → open fixture → TxLINE odds timeline  
+5. Point at `/health` integrations all true  
+6. Fail-closed: show HOLD reason when no in-play odds  
+
+Full script: [DEMO_SCRIPT.md](DEMO_SCRIPT.md)
