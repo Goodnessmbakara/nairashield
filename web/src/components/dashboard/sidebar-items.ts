@@ -5,26 +5,27 @@ import type { SidebarItem } from "./SidebarNav";
  */
 export type DashboardView = "overview" | "decisions" | "proofs" | "replays" | "portfolio";
 
+/** Core first: Agent is the product. Other views are secondary. */
 export const dashboardNav: SidebarItem[] = [
   {
     key: "overview",
-    title: "Overview",
-    icon: "solar:widget-2-outline",
+    title: "Agent",
+    icon: "solar:cpu-bolt-linear",
   },
   {
     key: "decisions",
-    title: "Decisions",
+    title: "History",
     icon: "solar:checklist-minimalistic-outline",
-  },
-  {
-    key: "proofs",
-    title: "Proofs",
-    icon: "solar:shield-check-linear",
   },
   {
     key: "replays",
     title: "Replays",
     icon: "solar:history-2-linear",
+  },
+  {
+    key: "proofs",
+    title: "Proofs",
+    icon: "solar:shield-check-linear",
   },
   {
     key: "portfolio",

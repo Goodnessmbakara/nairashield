@@ -366,7 +366,7 @@ const DecisionFeed = React.forwardRef<HTMLDivElement, FeedProps>(
         )}
       >
         <div className="flex flex-wrap items-center gap-2">
-          <h2 className="text-medium font-medium text-default-900">Agent activity</h2>
+          <h2 className="text-medium font-medium text-default-900">Recent checks</h2>
           <Chip
             classNames={{ content: "font-medium text-[0.65rem]" }}
             color={lastSyncedAt && Date.now() - lastSyncedAt < 8_000 ? "success" : "default"}
@@ -400,11 +400,8 @@ const DecisionFeed = React.forwardRef<HTMLDivElement, FeedProps>(
         </div>
 
         <p className="mt-2 max-w-xl text-tiny leading-5 text-default-500">
-          <span className="font-medium text-default-600">Keep earning</span> = HOLD.{" "}
-          <span className="font-medium text-default-600">Take opportunity</span> = TRADE.{" "}
-          <span className="font-medium text-default-600">Safe abort</span> = trade failed mid-way.{" "}
-          <span className="font-medium text-default-600">Feed issue</span> = odds/API glitch, no
-          trade.
+          Each row is one real agent tick on TxLINE odds — HOLD keeps capital in yield, TRADE only
+          when Y_net clears the edge.
           {onOpenProofs && (
             <>
               {" "}
@@ -413,7 +410,7 @@ const DecisionFeed = React.forwardRef<HTMLDivElement, FeedProps>(
                 type="button"
                 onClick={onOpenProofs}
               >
-                What decisions mean →
+                Verify path →
               </button>
             </>
           )}
